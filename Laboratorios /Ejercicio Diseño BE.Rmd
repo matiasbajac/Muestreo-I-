@@ -1,0 +1,54 @@
+---
+title: "Ejercicio Diseño Bernoulli"
+author: "Muestreo y Planificación de Encuestas"
+date: '2023-03-16'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+La base con la que se va a trabajar son los datos del Censo 2011, para la localidad de Bella Unión. El formato del archivo corresponde al programa SPSS, y tiene extensión *.sav*. Este tipo de archivos pueden ser importados con la librería **haven**. Cargamos entonces la librería e importamos el archivo utilizando la función *read_sav()*, guardándolo en el objeto *bu*:
+
+```{r }
+library(haven)
+bu=read_spss("bella_union.sav")
+
+```
+Selecciono una muestra con el diseño Bernoulli. El primer paso es generar un número aleatorio $\varepsilon_k$ para cada fila del objeto *bu*:
+
+```{r }
+bu$epsilon=runif(nrow(bu))
+```
+
+Fijo $\pi=0.1$, de forma que el tamaño de muestra esperado sea $N\pi=12000(0.1)=1200$. Los elementos elegidos son aquellos que cumplen $\varepsilon_k<0.1$. Se crean una variable *s* tal que valga uno para los elementos seleccionados y cero para el resto.
+
+```{r }
+pi=0.1
+bu$s=ifelse(bu$epsilon<pi,1,0)
+```
+La muestra se compone por las filas del objeto *bu* donde *s=1*.
+```{r }
+m=bu[bu$s==1,]
+```
+Como no fijamos una semilla el tamaño de muestra puede variar, en este caso es:
+
+```{r}
+sum(bu$s)
+```
+
+Ahora simulamos la distribución empírica del tamaño de muestra. 
+```{r }
+R=1000
+ns=numeric()
+for(i in 1:R){
+  epsilon=runif(nrow(bu))
+  ns[i]=sum(epsilon<pi)
+}
+
+hist(ns,main="Distribución empírica de ns en un diseño BE",40)
+
+```
+
+Más adelante demostraremos que las distribuciones empíricas obtenidas de esta forma son buenas aproximaciones a la distribución real del estimador. Es importante destacar que la aleatoriedad proviene del mecanismo de selección de la muestra, y que cada valor obtenido en el histograma parte de una muestra en particular.

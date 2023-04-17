@@ -14,6 +14,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 
 ```{r}
+library("sampling")
 library("tidyverse")
 library("here")
 datos=load(here("Datos","RB (1).RData"))
@@ -39,17 +40,112 @@ for (var_name in var_names) {
 }
 
 for (var_name in var_names) {
- datos[[var_name]] <- as.numeric(datos[[var_name]])
+ datos[[var_name]] <- as.numeric(datos[[var_name]]) ## pasamos las variables a numericas 
 }
-datos=datos %>% mutate(n2= NBI_EDUCACIÓN + NBI_HAC + NBI_MAT+NBI_COC +NBI_VIV +NBI_AGUA+NBI_SANEA+NBI_ELECT+NBI_CALEF+NBI_REFRIG+NBI_CALENTADOR) %>% mutate(ID = paste(ID_VIVIENDA,HOGID))  %>% filter(!duplicated(ID))
+datos_hogares=datos %>% mutate(NBI= NBI_EDUCACIÓN + NBI_HAC + NBI_MAT+NBI_COC +NBI_VIV +NBI_AGUA+NBI_SANEA+NBI_ELECT+NBI_CALEF+NBI_REFRIG+NBI_CALENTADOR) %>% mutate(ID = paste(ID_VIVIENDA,HOGID))  %>% filter(!duplicated(ID))  %>% rename(XO = 'HOGCE09') %>% group_by(ID) %>% summarise(NBI= sum(NBI),XO=sum(XO))
 
-datos
-
-
+datos_hogares$XO = ifelse(datos_hogares$XO==0,0,1)
 
 
-class(datos$NBI_CALENTADOR)
-datos$n2
+
+
+
+
+
+
+
+
 ```
 
+
+El total poblacional  de NBI a nivel hogares es : 
+
+```{r}
+t = sum(datos_hogares$NBI)
+```
+
+
+```{r}
+N=nrow(datos_hogares)
+n=150
+set.seed(1234)
+
+```
+$$Nos\ basaremos\ en\ el\ estmiador\ Horvitz\ thompson\ para\ estimar\ el\ total\ poblacional\ de\ la\ variable\ NBI$$
+
+$$en\ el\ Diseño\ Simple\ la\ probabilidad\ de\ inclusion\ de\ primer\ orden\ es\ \pi_k=n/N$$
+$$ del\ estimador\ H-T\ sabemos\ que\ t_\pi = \sum_s{y_k/ \pi_k}$$ 
+$$ por\ lo\ tanto\ t_\pi = N*\bar{y_s}$$
+
+
+
+En primer lugar, seleccionamos 1000 muestras con n = 150
+
+```{r}
+
+R=1000
+t_si1=numeric()
+for(i in 1:R){
+s=srswor(n,N)  
+m=getdata(datos_hogares,s)
+t_si1[i]=N*mean(m$NBI)
+}
+
+hist(t_si1,main="Distribución empírica del estimador HT con un diseño SI")
+
+
+```
+
+ Seleccionamos 1000 muestras  con n = 600 
+
+```{r}
+set.seed(1234)
+n2=600
+
+R=1000
+t_si2=numeric()
+for(i in 1:R){
+s=srswor(n2,N)  
+m=getdata(datos_hogares,s)
+t_si2[i]=N*mean(m$NBI)
+}
+
+hist(t_si2,main="Distribución empírica del estimador HT con un diseño SI")
+```
+ Seleccionamos 1000 muestras  con n = 1000 
+
+```{r}
+set.seed(1234)
+n3=1000
+
+R=1000
+t_si3=numeric()
+for(i in 1:R){
+s=srswor(n2,N)  
+m=getdata(datos_hogares,s)
+t_si3[i]=N*mean(m$NBI)
+}
+hist(t_si3,main="Distribución empírica del estimador HT con un diseño SI")
+
+```
+
+Calculamos  la varianza del estimador $\pi$ para  cada numero de muestra como paso previo para luego calcular el efecto diseño.
+
+
+
+```{r}
+
+var_si1 = var(t_si1)
+var_si2 = var(t_si2)
+var_si3 = var(t_si3)
+
+
+```
+
+
+
+
+
+
 Estimaremos el total de hogares que tienen XO 
+

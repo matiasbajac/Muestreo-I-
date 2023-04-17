@@ -1,0 +1,185 @@
+---
+title: "Ejercicio Diseño Sistemático"
+author: "Muestreo y Planificación de Encuestas"
+date: '2023-03-29'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+La base con la que se va a trabajar son los datos del Censo 2011, para la localidad de Bella Unión. El formato del archivo corresponde al programa SPSS, y tiene extensión *.sav*. Este tipo de archivos pueden ser importados con la librería **haven**. Cargamos entonces la librería e importamos el archivo utilizando la función *read_sav()*, guardándolo en el objeto *bu*:
+
+```{r }
+library(haven)
+bu=read_spss("bella_union.sav")
+
+```
+Para seleccionar muestras con un diseño SY debemos llamar a la librería **sampling**:
+
+
+```{r }
+library(sampling)
+```
+
+Se quiere estimar el total de jubilados y pensionistas, la variable que debemos trabajar es la *pobpcoac*. La categoría 5 corresponde
+a la población objeto de estudio.
+
+```{r }
+bu$jp=ifelse(bu$pobpcoac==5,1,0)
+```
+El total poblacional es:
+```{r }
+t=sum(bu$jp)  
+t
+```
+Vamos a seleccionar una muestra de tamaño 200. En el diseño SY las probabilidades de inclusión son $\pi_k=1/a=n/N$, o sea que en este caso es $\pi_k=200/12200$. En la librería **sampling** se debe especificar el vector de probabilidades de inclusión para todo el marco, o sea que se debe crear un vector que repita $N$ veces el valor de $\pi_k$.
+
+```{r}
+N=nrow(bu)
+n=200
+a=N/n
+pik=rep(n/N,N)
+```
+
+La función que se utiliza para obtener la muestra sistemática se llama *UPsystematic()*. Antes de la selección fijo una semilla con la función *set.seed()*
+
+```{r }
+set.seed(12687)
+s=UPsystematic(pik)
+```
+*UPsystematic()* genera un vector de largo 12200 con ceros y unos. Los unos corresponden a los elementos seleccionados. Verifico si efectivamente se seleccionaron 200 individuos.
+
+```{r }
+sum(s)
+```
+Para obtener los datos utilizo la función *getdata()*:
+
+```{r }
+m=getdata(bu,s)
+```
+Miro la muestra
+
+```{r, eval=FALSE}
+View(m)
+```
+
+El estimador $\pi$ en el caso del diseño SY es $\hat{t}_{\pi}=at_s$, o sea que la estimación es:
+
+```{r}
+tpi=a*sum(m$jp)
+tpi
+```
+Como todavía no sabemos cómo estimar varianzas para un diseño SY, 
+y en este caso conocemos a la población, hacemos el mismo ejercicio
+que en el primer laboratorio: seleccionamos muchas muestras, aproximando así a la distribución empírica del estimador. En el diseño SY podemos obtener todas las muestras posibles, ya que el total de muestras es acotado.
+
+En este caso nos vamos a concentrar en ordenar el marco de distintas formas, para poder evaluar cómo impacta el orden de la variable de interés en el marco en el $Deff(\hat{t}_{\pi}, SY)$. 
+
+# Caso 1: Mantenemos el orden original del marco.
+
+Generamos las 61 muestras sistemáticas de tamaño 200. Para ello se crea un vector vacío en donde se guardarán el resultado de los 61 estimadores $\pi$ y una lista vacía en donde se guardarán los datos de las 61 muestras.
+
+```{r}
+t_pi_1=numeric()
+sy.1 <- vector("list", length = a)
+for(r in 1:a){
+  aux<-numeric()
+  for(j in 1:n){
+  aux=c(aux,r+(j-1)*a)
+  }
+  sy.1[[r]]=bu[aux,]
+  t_pi_1[r]=61*sum(sy.1[[r]]$jp)
+}
+
+hist(t_pi_1,main="",xlab = "Estimador HT para del diseño SY con el orden original del marco")
+```
+
+Obtenemos el promedio de las estimaciones y comparamos con el total $t$:
+```{r}
+t_1=mean(t_pi_1)
+t_1
+t
+```
+Obtenemos el efecto diseño. Para ello necesitamos calcular previamente a $V_{SI}(\hat{t}_{\pi})$:
+```{r}
+v_si=N^2*(1-n/N)*var(bu$jp)/n
+deff1=var(t_pi_1)/v_si
+deff1
+```
+
+## Caso 2: ordenamos el marco de acuerdo a la variable *jp*
+
+Ordenamos el marco y genero las 61 muestras sistemáticas de tamaño 200:
+
+```{r}
+bu=bu[order(bu$jp),]
+
+t_pi_2=numeric()
+sy.2 <- vector("list", length = a)
+for(r in 1:a){
+  aux<-numeric()
+  for(j in 1:n){
+    aux=c(aux,r+(j-1)*a)
+  }
+  sy.2[[r]]=bu[aux,]
+  t_pi_2[r]=61*sum(sy.2[[r]]$jp)
+}
+
+hist(t_pi_2,main="",xlab = "Estimador HT para del diseño SY con el orden de la variable de interés en el marco")
+
+```
+
+Obtenemos el promedio de las estimaciones y comparamos con el total $t$:
+```{r}
+t_2=mean(t_pi_2)
+t_2
+t
+```
+Obtenemos el efecto diseño.
+
+```{r}
+deff2=var(t_pi_2)/v_si
+deff2
+```
+
+
+## Caso 3: ordenamos de forma cíclica.
+
+Los primeros pasos se realizan para crear un ciclo, de forma que desfavorezca al diseño SY.
+```{r}
+bu$aux=(seq(1,nrow(bu))/100)%%1
+bu=bu[order(bu$aux),]
+```
+
+Luego genero las 61 muestras sistemáticas de tamaño 200.
+```{r}
+t_pi_3=numeric()
+sy.3 <- vector("list", length = a)
+for(r in 1:a){
+  aux<-numeric()
+  for(j in 1:n){
+    aux=c(aux,r+(j-1)*a)
+  }
+  sy.3[[r]]=bu[aux,]
+  t_pi_3[r]=61*sum(sy.3[[r]]$jp)
+}
+
+hist(t_pi_3,main="",xlab = "Estimador HT para del diseño SY con un orden cíclico de la variable de interés en el marco")
+```
+
+Obtenemos el promedio de las estimaciones y comparamos con el total $t$:
+```{r}
+t_3=mean(t_pi_3)
+t_3
+t
+```
+Obtenemos el efecto diseño.
+
+```{r}
+deff3=var(t_pi_3)/v_si
+deff3
+```
+
+

@@ -14,9 +14,12 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r librerias include = FALSE}
 library(sampling)
+install.packages("xtable")
 library(tidyverse)
 library(haven)
 library(here)
+library(xtable)
+
 ```
 
 La variable que elegimos para trabajar es el total de hogares que no tienen acceso a computadoras XO. Para eso, usamos la variable "HOGCE09", que indica la cantidad de dispositivos que hay en el hogar.   
@@ -24,9 +27,10 @@ En cuanto a la base de datos, creamos una variable indicadora para cada hogar, u
 Luego creamos nuestras variables de interés:
 - *NBI* vale 0 si el hogar tiene 3 o menos NBI y 1 si tiene 4 o más.
 - *XO* vale 0 si el hogar tiene algún dispositivo, y 1 en caso de no contar con ninguno.
+-
 
 ```{r datos}
-load("RB.RData")
+datos=load(here("Datos","RB (1).RData"))
 datos <-  rio_branco
 rm(rio_branco)
 
@@ -47,6 +51,7 @@ datos_hogares <- datos %>%
   mutate(NBI = if_else(NBI>3, 1, 0), XO = if_else(HOGCE09 == 0,1,0)) %>% 
   select(ID, NBI, XO)
 
+
 ```
 
 El total poblacional de NBI a nivel hogares es `r sum(datos_hogares$NBI)`: 
@@ -57,6 +62,7 @@ $$en\ el\ Diseño\ Simple\ la\ probabilidad\ de\ inclusion\ de\ primer\ orden\ e
 $$ del\ estimador\ H-T\ sabemos\ que\ t_\pi = \sum_s{y_k/ \pi_k}$$ 
 $$ por\ lo\ tanto\ t_\pi = N*\bar{y_s}$$
 Una vez obtenida la base, procedemos a crear funciones que permiten obtener las muestras y los respectivos estimadores para cada diseño. Elegimos trabajar con el Bernoulli y el SIR además del simple.
+Para el diseño Bernoulli, la muestra se hace simulando una U ~ (0,1) para cada observacion de la  poblacion y luego seleccionando las filas en las cuales los valores sean menor a la probabiliad de inclusion de primer orden
 
 ```{r funciones}
 # Obtenemos el tamaño de la población y establecemos la cantidad de simulaciones
@@ -98,6 +104,8 @@ BER <- function(n) {
 t1_SI <-  SI(150)
 t1_BER <- BER(150)
 t1_SIR <- SIR(150)
+df= as_tibble(t1_SI)
+ggplot(df, aes(value)) +geom_histogram(fill='red',color='white',alpha=0.5, binwidth=50)+theme_bw() + labs(x = "total", y = "") 
 
 ```
 

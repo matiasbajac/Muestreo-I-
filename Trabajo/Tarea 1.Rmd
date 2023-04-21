@@ -3,8 +3,8 @@ title: "Trabajo 1"
 author: "Matias Bajac - Lucas Pescetto - Andres Vidal"
 date: '2023-04-10'
 output:
-  pdf_document: default
   html_document: default
+  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -12,9 +12,9 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 
-```{r librerias include = FALSE}
+```{r librerias, include = FALSE}
 library(sampling)
-install.packages("xtable")
+library(xtable)
 library(tidyverse)
 library(haven)
 library(here)
@@ -25,12 +25,12 @@ library(xtable)
 La variable que elegimos para trabajar es el total de hogares que no tienen acceso a computadoras XO. Para eso, usamos la variable "HOGCE09", que indica la cantidad de dispositivos que hay en el hogar.   
 En cuanto a la base de datos, creamos una variable indicadora para cada hogar, uniendo la variable identificadora de viviendas y el n° de hogar; para así quedarnos con una sola observación por hogar.   
 Luego creamos nuestras variables de interés:
-- *NBI* vale 0 si el hogar tiene 3 o menos NBI y 1 si tiene 4 o más.
-- *XO* vale 0 si el hogar tiene algún dispositivo, y 1 en caso de no contar con ninguno.
+- **NBI** vale 0 si el hogar tiene 3 o menos NBI y 1 si tiene 4 o más.
+- **XO** vale 0 si el hogar tiene algún dispositivo, y 1 en caso de no contar con ninguno.
 -
 
 ```{r datos}
-datos=load(here("Datos","RB (1).RData"))
+datos <- load(here("Datos","RB (1).RData"))
 datos <-  rio_branco
 rm(rio_branco)
 
@@ -47,7 +47,7 @@ for (var_name in var_names) {
 datos_hogares <- datos %>% 
   mutate(ID = paste(ID_VIVIENDA,HOGID))  %>% 
   filter(!duplicated(ID))  %>% 
-  mutate(NBI= NBI_EDUCACIÓN + NBI_HAC + NBI_MAT + NBI_COC + NBI_VIV + NBI_AGUA + NBI_SANEA + NBI_ELECT + NBI_CALEF + NBI_REFRIG + NBI_CALENTADOR) %>% 
+  mutate(NBI = NBI_EDUCACIÓN + NBI_HAC + NBI_MAT + NBI_COC + NBI_VIV + NBI_AGUA + NBI_SANEA + NBI_ELECT + NBI_CALEF + NBI_REFRIG + NBI_CALENTADOR) %>% 
   mutate(NBI = if_else(NBI>3, 1, 0), XO = if_else(HOGCE09 == 0,1,0)) %>% 
   select(ID, NBI, XO)
 
@@ -69,24 +69,24 @@ Para el diseño Bernoulli, la muestra se hace simulando una U ~ (0,1) para cada 
 N <- nrow(datos_hogares)
 R <- 1000
 
-SI <-  function(n) {
+SI <-  function(n, var) {
   t_si <- numeric() 
   for (i in 1:R){
     s <- srswor(n, N)  
     m <- getdata(datos_hogares, s)
-    t_si[i] <- N*mean(m$NBI)
+    t_si[i] <- N*mean(m[[var]])
   }
   return(t_si)
 }
 
-BER <- function(n) {
+BER <- function(n, var) {
   t_ber <- numeric()
   # elegimos pi_k para que el tamaño de muestra esperado sea el requerido
   pi_k <- n/N
   for (i in 1:R) {
     datos_hogares$epsilon <- runif(nrow(datos_hogares))
     m <- datos_hogares %>% filter(epsilon < pi_k)
-    t_ber[i] <- sum(m$NBI)/pi_k
+    t_ber[i] <- sum(m[[var]])/pi_k
   }
   return(t_ber)
 }
@@ -95,23 +95,115 @@ BER <- function(n) {
 
 # Parte 1
 
-## Variable total de NBI
+## Total de hogares con 4 o más NBI
 
-# Tamaño de muestra *n = 150*
-
+### Tamaño de muestra **n = 150**
 
 ```{r}
-t1_SI <-  SI(150)
-t1_BER <- BER(150)
-t1_SIR <- SIR(150)
-df= as_tibble(t1_SI)
-ggplot(df, aes(value)) +geom_histogram(fill='red',color='white',alpha=0.5, binwidth=50)+theme_bw() + labs(x = "total", y = "") 
+t1_SI <-  SI(150, "NBI")
+t1_BER <- BER(150, "NBI")
+
+ggplot(data.frame(t1_SI, t1_BER) %>% pivot_longer(cols = everything()), aes(x = value)) +   geom_histogram(fill='red',color='white',alpha=0.5, binwidth = 60) +
+    theme_bw() + 
+  labs(x = "Total estimado", y = "frecuencia", title = "Distribución empírica del Total Estimado", subtitle = "n = 150") +
+  facet_wrap(~name, labeller = labeller(name = function(var, name) {
+    labels <- c("BER", "SI")
+    return(labels[name])
+  }))
+```
+
+### Tamaño de muestra **n = 600**
+
+```{r}
+
+t2_SI <-  SI(600, "NBI")
+t2_BER <- BER(600, "NBI")
+
+ggplot(data.frame(t2_SI, t2_BER) %>% pivot_longer(cols = everything()), aes(x = value)) +   geom_histogram(fill='red',color='white',alpha=0.5, binwidth=30) +
+  theme_bw() + 
+  labs(x = "Total estimado", y = "frecuencia", title = "Distribución empírica del Total Estimado", subtitle = "n = 600") +
+  facet_wrap(~name, labeller = labeller(name = function(var, name) {
+    labels <- c("BER", "SI")
+    return(labels[name])
+  }))
 
 ```
 
+### Tamaño de muestra **n = 1000**
+
+```{r}
+
+t3_SI <-  SI(1000, "NBI")
+t3_BER <- BER(1000, "NBI")
+
+ggplot(data.frame(t3_SI, t3_BER) %>% pivot_longer(cols = everything()), aes(x = value)) +   geom_histogram(fill='red',color='white',alpha=0.5, binwidth=30) +
+  theme_bw() + 
+  labs(x = "Total estimado", y = "frecuencia", title = "Distribución empírica del Total Estimado", subtitle = "n = 600") +
+  facet_wrap(~name, labeller = labeller(name = function(var, name) {
+    labels <- c("BER", "SI")
+    return(labels[name])
+  }))
+
+```
+
+## Total de hogares con acceso a XO
+
+### Tamaño de muestra **n = 150**
+
+```{r}
+t4_SI <-  SI(150, "XO")
+t4_BER <- BER(150, "XO")
+
+ggplot(data.frame(t4_SI, t4_BER) %>% pivot_longer(cols = everything()), aes(x = value)) +   geom_histogram(fill='red',color='white',alpha=0.5, binwidth = 60) +
+    theme_bw() + 
+  labs(x = "Total estimado", y = "frecuencia", title = "Distribución empírica del Total Estimado", subtitle = "n = 150") +
+  facet_wrap(~name, labeller = labeller(name = function(var, name) {
+    labels <- c("BER", "SI")
+    return(labels[name])
+  }))
+```
+
+### Tamaño de muestra **n = 600**
+
+```{r}
+
+t5_SI <-  SI(600, "XO")
+t5_BER <- BER(600, "XO")
+
+ggplot(data.frame(t5_SI, t5_BER) %>% pivot_longer(cols = everything()), aes(x = value)) +   geom_histogram(fill='red',color='white',alpha=0.5, binwidth=30) +
+  theme_bw() + 
+  labs(x = "Total estimado", y = "frecuencia", title = "Distribución empírica del Total Estimado", subtitle = "n = 600") +
+  facet_wrap(~name, labeller = labeller(name = function(var, name) {
+    labels <- c("BER", "SI")
+    return(labels[name])
+  }))
+
+```
+
+### Tamaño de muestra **n = 1000**
+
+```{r}
+
+t6_SI <-  SI(1000, "XO")
+t6_BER <- BER(1000, "XO")
+
+ggplot(data.frame(t6_SI, t6_BER) %>% pivot_longer(cols = everything()), aes(x = value)) +   geom_histogram(fill='red',color='white',alpha=0.5, binwidth=30) +
+  theme_bw() + 
+  labs(x = "Total estimado", y = "frecuencia", title = "Distribución empírica del Total Estimado", subtitle = "n = 600") +
+  facet_wrap(~name, labeller = labeller(name = function(var, name) {
+    labels <- c("BER", "SI")
+    return(labels[name])
+  }))
+
+```
+
+
+
+
+
 Observamos que en los 3 casos se cumple que el estimador $\hat{t}$ es insesgado 
 
-```{r,eval=FALSE}
+```{r,eval=FALSE, include = FALSE}
 set.seed(1234)
 esperanza_total1 <- mean(t1)
 esperanza_total2 <- mean(t2)
@@ -120,7 +212,7 @@ esperanza_total3 <- mean(t3)
 
 Calculamos  la varianza del estimador t  para  cada numero de muestra como paso previo para luego calcular el efecto diseño.
 
-```{r}
+```{r, eval = FALSE, include = FALSE}
 set.seed(1234)
 varianza_tota_1_si=var(t1)
 varianza_total_2_si = var(t2)
@@ -129,10 +221,21 @@ varianza_total_3_si= var(t3)
 
 Calculamos con la varianza teorica y la comparamos con la simulada 
 
-```{r varianzas teoricas}
+```{r varianzas teoricas, eval = FALSE, include = FALSE}
 
 # capaz agregar a función
 v_si <- N^2*(1-n/N)*var(datos_hogares2$NBI)/n
 
 v_ber <- ((1-150/N)/(150/N))*sum(datos_hogares$NBI**2)
 ```
+
+# cuadro de texto con max y min
+
+```{r}
+
+annotate("text", x = 495, y = 290, hjust = 1, vjust = 1, label = paste("min:", round(min(t3_SI),2), "\n", "max:", round(max(t3_BER),2)), size = 3) +
+  geom_rect(aes(xmin = 425, xmax = 500, ymin = 250, ymax = 300), fill = NA, color = "black")
+
+
+```
+

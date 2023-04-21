@@ -1,0 +1,175 @@
+---
+title: "Simulación de Distribuciones Empíricas"
+author: "Muestreo y Planificación de Encuestas"
+date: '2023-03-29'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+La base con la que se va a trabajar son los datos del Censo 2011, para la localidad de Bella Unión. El formato del archivo corresponde al programa SPSS, y tiene extensión *.sav*. Este tipo de archivos pueden ser importados con la librería **haven**. Cargamos entonces la librería e importamos el archivo utilizando la función *read_sav()*, guardándolo en el objeto *bu*:
+
+```{r }
+library(haven)
+library(here)
+bu=read_spss(here("Datos","bella_union.sav"))
+
+
+```
+En este ejemplo simularemos la distribución del total de desocupados de la localidad de Bella Unión, para los diseños SI, SIR y SY, con $n=610$. La variable "desocupado" se crea a partir de las categorías 3 y 4 de la variable *pobpcoac* del Censo 2011. Llamamos a la librería **sampling** con la que seleccionaremos las muestras. En el caso del diseño SY mantenemos el orden original de la base de datos.
+
+
+```{r }
+library(sampling)
+```
+Creamos la variable "desocupado":
+
+```{r }
+bu$desocupado=ifelse(bu$pobpcoac==3|bu$pobpcoac==4,1,0)
+```
+El total poblacional es:
+
+```{r }
+t=sum(bu$desocupado)  
+t
+```
+Definimos los parámetros y fijo la semilla:
+
+
+```{r}
+N=nrow(bu)
+n=610
+a=N/n
+set.seed(12345)
+```
+
+## Diseño SI
+
+Seleccionamos 1000 muestras de tamaño 610 y realizamos el histograma. Las muestras con diseño SI se seleccionan con la función *srswor()*, a la que hay que indicarle dos parámetros, el tamaño de muestra $n$ y el tamaño de la población $N$. En el diseño SI el estimador $\pi$ se obtiene como $N\bar{y}_s$.
+
+```{r}
+R=1000
+t_si=numeric()
+for(i in 1:R){
+s=srswor(n,N)  
+m=getdata(bu,s)
+t_si[i]=N*mean(m$desocupado)
+}
+
+hist(t_si,main="Distribución empírica del estimador HT con un diseño SI")
+
+```
+
+Obtengo las estimaciones del total y comparo con el verdadero valor de $t$.
+
+```{r }
+t_sim_si=mean(t_si)
+t_sim_si
+t
+```
+La varianza estimada es:
+```{r }
+v_sim_si=var(t_si)
+v_sim_si
+```
+
+Estimo el intervalo de confianza empírico para $t$ al 95% de confianza.
+
+```{r }
+quantile(t_si,c(0.025,0.975))
+```
+Lo calculo utilizando la aproximación normal y comparo los resultados:
+
+```{r }
+t-qnorm(0.975)*sqrt(v_sim_si)
+t+qnorm(0.975)*sqrt(v_sim_si)
+```
+Los resultados son diferentes. Esto se debe a que el histograma no se corresponde exactamente con el de una distribución normal.
+
+## Diseño SIR
+
+Seleccionamos 1000 muestras de tamaño 610 con remplazo y realizamos el histograma. Las muestras con diseño SIR se seleccionan con la función *srswr()*, a la que hay que indicarle el tamaño de muestra $n$ y el tamaño de la población $N$. En el caso del diseño SIR el estimador $\hat{t}_{pwr}=N\bar{y}_{os}$
+
+```{r}
+t_sir=numeric()
+for(i in 1:R){
+s=srswr(n,N)  
+m=getdata(bu,s)
+t_sir[i]=N*mean(m$desocupado)
+}
+
+hist(t_sir,main="Distribución empírica del estimador t_pwr con un diseño SIR")
+
+```
+
+Obtengo las estimaciones del total y comparo con el verdadero valor de $t$.
+
+```{r }
+t_sim_sir=mean(t_sir)
+t_sim_sir
+t
+```
+Calculo la varianza:
+```{r }
+v_sim_sir=var(t_sir)
+v_sim_sir
+```
+
+Estimo el intervalo de confianza empírico para $t$ al 95% de confianza.
+
+```{r }
+quantile(t_sir,c(0.025,0.975))
+```
+Lo calculo utilizando la aproximación normal y comparo los resultados:
+
+```{r }
+t-qnorm(0.975)*sqrt(v_sim_sir)
+t+qnorm(0.975)*sqrt(v_sim_sir)
+```
+Los resultados en este caso son más cercanos que los obtenidos en el diseño SI.
+
+## Diseño SY
+
+En el diseño SY podemos obtener todas las muestras posibles, ya que el total de muestras es acotado. De todas formas, se simula de la misma manera que para el diseño SI y el SIR. Así se evita el problema del tamaño de muestra aleatorio en futuras aplicaciones.
+
+```{r}
+t_sy=numeric()
+for(r in 1:a){
+  aux<-numeric()
+  for(j in 1:n){
+    aux=c(aux,r+(j-1)*a)
+  }
+  m=bu[aux,]
+  t_sy[r]=a*sum(m$desocupado)
+}
+
+hist(t_sy,main="Distribución empírica del estimador HT con un diseño SY")
+
+```
+
+Obtengo las estimaciones del total comparo con el verdadero valor de $t$.
+
+```{r }
+t_sim_sy=mean(t_sy)
+t_sim_sy
+t
+```
+Hago lo mismo con la varianza:
+```{r }
+v_sim_sy=var(t_sy)
+v_sim_sy
+```
+
+Estimo el intervalo de confianza empírico para $t$ al 95% de confianza.
+
+```{r }
+quantile(t_sir,c(0.025,0.975))
+```
+Lo calculo utilizando la aproximación normal y comparo los resultados:
+
+```{r }
+t-qnorm(0.975)*sqrt(v_sim_sy)
+t+qnorm(0.975)*sqrt(v_sim_sy)
+```

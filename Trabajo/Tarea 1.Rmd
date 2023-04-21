@@ -1,0 +1,130 @@
+---
+title: "Trabajo 1"
+author: "Matias Bajac - Lucas Pescetto - Andres Vidal"
+date: '2023-04-10'
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r librerias include = FALSE}
+library(sampling)
+library(tidyverse)
+library(haven)
+library(here)
+```
+
+La variable que elegimos para trabajar es el total de hogares que no tienen acceso a computadoras XO. Para eso, usamos la variable "HOGCE09", que indica la cantidad de dispositivos que hay en el hogar.   
+En cuanto a la base de datos, creamos una variable indicadora para cada hogar, uniendo la variable identificadora de viviendas y el n° de hogar; para así quedarnos con una sola observación por hogar.   
+Luego creamos nuestras variables de interés:
+- *NBI* vale 0 si el hogar tiene 3 o menos NBI y 1 si tiene 4 o más.
+- *XO* vale 0 si el hogar tiene algún dispositivo, y 1 en caso de no contar con ninguno.
+
+```{r datos}
+load("RB.RData")
+datos <-  rio_branco
+rm(rio_branco)
+
+# convertimos los 8 y 9 en 0
+var_names <- names(datos)[grepl("^NBI_", names(datos))][-13]
+for (var_name in var_names) {
+ datos[[var_name]] <- gsub("[89]", "0", datos[[var_name]])
+}
+# pasamos las variables a numericas
+for (var_name in var_names) {
+ datos[[var_name]] <- as.numeric(datos[[var_name]])
+}
+
+datos_hogares <- datos %>% 
+  mutate(ID = paste(ID_VIVIENDA,HOGID))  %>% 
+  filter(!duplicated(ID))  %>% 
+  mutate(NBI= NBI_EDUCACIÓN + NBI_HAC + NBI_MAT + NBI_COC + NBI_VIV + NBI_AGUA + NBI_SANEA + NBI_ELECT + NBI_CALEF + NBI_REFRIG + NBI_CALENTADOR) %>% 
+  mutate(NBI = if_else(NBI>3, 1, 0), XO = if_else(HOGCE09 == 0,1,0)) %>% 
+  select(ID, NBI, XO)
+
+```
+
+El total poblacional de NBI a nivel hogares es `r sum(datos_hogares$NBI)`: 
+
+$$Nos\ basaremos\ en\ el\ estmiador\ Horvitz\ thompson\ para\ estimar\ el\ total\ poblacional\ de\ la\ variable\ NBI$$
+
+$$en\ el\ Diseño\ Simple\ la\ probabilidad\ de\ inclusion\ de\ primer\ orden\ es\ \pi_k=n/N$$
+$$ del\ estimador\ H-T\ sabemos\ que\ t_\pi = \sum_s{y_k/ \pi_k}$$ 
+$$ por\ lo\ tanto\ t_\pi = N*\bar{y_s}$$
+Una vez obtenida la base, procedemos a crear funciones que permiten obtener las muestras y los respectivos estimadores para cada diseño. Elegimos trabajar con el Bernoulli y el SIR además del simple.
+
+```{r funciones}
+# Obtenemos el tamaño de la población y establecemos la cantidad de simulaciones
+N <- nrow(datos_hogares)
+R <- 1000
+
+SI <-  function(n) {
+  t_si <- numeric() 
+  for (i in 1:R){
+    s <- srswor(n, N)  
+    m <- getdata(datos_hogares, s)
+    t_si[i] <- N*mean(m$NBI)
+  }
+  return(t_si)
+}
+
+BER <- function(n) {
+  t_ber <- numeric()
+  # elegimos pi_k para que el tamaño de muestra esperado sea el requerido
+  pi_k <- n/N
+  for (i in 1:R) {
+    datos_hogares$epsilon <- runif(nrow(datos_hogares))
+    m <- datos_hogares %>% filter(epsilon < pi_k)
+    t_ber[i] <- sum(m$NBI)/pi_k
+  }
+  return(t_ber)
+}
+
+```
+
+# Parte 1
+
+## Variable total de NBI
+
+# Tamaño de muestra *n = 150*
+
+
+```{r}
+t1_SI <-  SI(150)
+t1_BER <- BER(150)
+t1_SIR <- SIR(150)
+
+```
+
+Observamos que en los 3 casos se cumple que el estimador $\hat{t}$ es insesgado 
+
+```{r,eval=FALSE}
+set.seed(1234)
+esperanza_total1 <- mean(t1)
+esperanza_total2 <- mean(t2)
+esperanza_total3 <- mean(t3)
+```
+
+Calculamos  la varianza del estimador t  para  cada numero de muestra como paso previo para luego calcular el efecto diseño.
+
+```{r}
+set.seed(1234)
+varianza_tota_1_si=var(t1)
+varianza_total_2_si = var(t2)
+varianza_total_3_si= var(t3)
+```
+
+Calculamos con la varianza teorica y la comparamos con la simulada 
+
+```{r varianzas teoricas}
+
+# capaz agregar a función
+v_si <- N^2*(1-n/N)*var(datos_hogares2$NBI)/n
+
+v_ber <- ((1-150/N)/(150/N))*sum(datos_hogares$NBI**2)
+```

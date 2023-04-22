@@ -34,9 +34,13 @@ set.seed(0)
 n_pop <- nrow(data)
 n_simulations <- 1000
 
+sample_sir <- function(data, sample_size) {
+  sample(data, sample_size, replace = TRUE)
+}
+
 simulate_t_pi_sir <- function(sample_size) {
   replicate(n_simulations, {
-    s <- sample(data$NBI, sample_size, replace = TRUE)
+    s <- sample_sir(data$NBI, sample_size)
     p <- 1 - (1 - 1 / n_pop)^sample_size
     sum(s / p)
   })

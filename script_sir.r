@@ -31,39 +31,38 @@ data <- rio_branco %>%
 # Estimación de NBI mediante el diseño SIR con HT
 set.seed(0)
 
+n_pop <- nrow(data)
 n_simulations <- 1000
 
 simulate_t_pi_sir <- function(sample_size) {
   replicate(n_simulations, {
     s <- sample(data$NBI, sample_size, replace = TRUE)
-    p <- 1 - (1 - 1 / nrow(data))^sample_size
+    p <- 1 - (1 - 1 / n_pop)^sample_size
     sum(s / p)
   })
 }
 
+empirical_distribution_sir <- function(n) {
+  # Simular
+  t_pi_sir <- data.frame(x = simulate_t_pi_sir(n))
 
-sample_sizes <- c(150, 600, 1000)
+  # Regla de Scott para el ancho de los bins
+  binwidth <- 3.5 * sd(t_pi_sir$x) / (n^(1 / 3))
 
-t_pi_sir <- data.frame(
-  lapply(sample_sizes, simulate_t_pi_sir)
-)
-colnames(t_pi_sir) <- paste0("n_", sample_sizes)
-
-
-empirical_distribution <- function(n) {
-  var <- paste("n", n, sep = "_")
-  binwidth <- 3.5 * sd(t_pi_sir[[var]]) / (n^(1 / 3))
-  ggplot(t_pi_sir, aes(x = !!sym(var), y = after_stat(density))) +
+  # Graficar Histograma + Curva de densidad
+  ggplot(t_pi_sir, aes(x = x, y = after_stat(density))) +
     geom_histogram(binwidth = binwidth, color = "black", fill = "white") +
     geom_density(alpha = 0.2, fill = "blue") +
     labs(x = "Data", y = "Density") +
     theme_classic()
 
+  # Guardar gráfico
   ggsave(
-    paste("t_pi_sir_", var, ".png", sep = ""),
+    paste0("t_pi_sir_n_", n, ".png"),
     width = 10, height = 10, dpi = 300
   )
 }
 
+sample_sizes <- c(150, 600, 1000)
 
-for (n in sample_sizes) empirical_distribution(n)
+for (n in sample_sizes) empirical_distribution_sir(n)

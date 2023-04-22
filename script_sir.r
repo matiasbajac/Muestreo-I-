@@ -149,3 +149,18 @@ xo <- (
   )
 )
 names(xo) <- sample_sizes
+
+
+# Calcular deff para SIR con HT considerando cada variable
+
+deff_sir_t_pi_nbi <- t(data.frame(
+  lapply(nbi, function(sample) deff_sir_t_pi(data$NBI, sample))
+))
+colnames(deff_sir_t_pi_nbi) <- "deff_sir_t_pi"
+
+
+deff_sir_t_pi_xo <- t(data.frame(
+  lapply(xo, function(sample) deff_sir_t_pi(data$XO, sample))
+))
+
+colnames(deff_sir_t_pi_xo) <- "deff_sir_t_pi"

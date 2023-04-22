@@ -82,6 +82,14 @@ for (sample_size in sample_sizes) {
   empirical_distribution_sir(data$NBI, sample_size, prefix = "nbi_")
 }
 
+# Estimación de la distribución empírica del estimador HT
+# para la variable XO
+
+for (sample_size in sample_sizes) {
+  empirical_distribution_sir(data$XO, sample_size, prefix = "xo_")
+}
+
+
 # Cálculo de Deff para el SIR
 
 deff_sir_t_pi <- function(sampling_frame, sample) {
@@ -140,5 +148,4 @@ xo <- (
     function(sample_size) sample_sir(data$XO, sample_size)
   )
 )
-
 names(xo) <- sample_sizes

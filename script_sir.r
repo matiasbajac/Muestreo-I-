@@ -37,7 +37,7 @@ sample_sir <- function(sampling_frame, sample_size) {
 }
 
 simulate_t_pi_sir <- function(sampling_frame, sample_size) {
-  n_simulations <- 1000
+  n_simulations <- 5000
 
   replicate(n_simulations, {
     s <- sample_sir(sampling_frame, sample_size)
@@ -48,15 +48,20 @@ simulate_t_pi_sir <- function(sampling_frame, sample_size) {
 
 empirical_distribution_sir <- function(sampling_frame, sample_size, prefix) {
   # Simular
-  t_pi_sir <- data.frame(x = simulate_t_pi_sir(sampling_frame, sample_size))
+  t <- data.frame(t_pi = simulate_t_pi_sir(sampling_frame, sample_size))
 
   # Regla de Scott para el ancho de los bins
-  binwidth <- 3.5 * sd(t_pi_sir$x) / (sample_size^(1 / 3))
+  binwidth <- 3.5 * sd(t$t_pi) / (sample_size^(1 / 3))
 
   # Graficar Histograma + Curva de densidad
-  ggplot(t_pi_sir, aes(x = x, y = after_stat(density))) +
+  ggplot(t, aes(x = t_pi, y = after_stat(density))) +
     geom_histogram(binwidth = binwidth, color = "black", fill = "white") +
     geom_density(alpha = 0.2, fill = "blue") +
+    geom_vline(
+      aes(xintercept = sum(sampling_frame)),
+      color = "red",
+      size = 1.5
+    ) +
     labs(x = "Data", y = "Density") +
     theme_classic()
 
@@ -67,10 +72,11 @@ empirical_distribution_sir <- function(sampling_frame, sample_size, prefix) {
   )
 }
 
+sample_sizes <- c(150, 600, 1000)
+
+
 # Estimación de la distribución empírica del estimador HT
 # para la variable NBI
-
-sample_sizes <- c(150, 600, 1000)
 
 for (sample_size in sample_sizes) {
   empirical_distribution_sir(data$NBI, sample_size, prefix = "nbi_")

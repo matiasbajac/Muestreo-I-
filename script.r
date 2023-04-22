@@ -1,5 +1,7 @@
 library(tidyverse)
 library(haven)
+library(survey)
+library(ggplot2)
 
 # Limpiar el ambiente
 
@@ -25,3 +27,43 @@ data <- rio_branco %>%
   mutate(NBI = has_nbi(.)) %>%
   filter(!duplicated(ID_VIVIENDA)) %>%
   select(NBI, XO)
+
+# Estimación de NBI mediante el diseño SIR con HT
+set.seed(0)
+
+n_simulations <- 1000
+
+simulate_t_pwr_sir <- function(sample_size) {
+  replicate(n_simulations, {
+    s <- sample(data$NBI, sample_size, replace = TRUE)
+    p <- replicate(sample_size, 1 - (1 - 1 / nrow(data))^sample_size)
+    sum(s / p)
+  })
+}
+
+
+sample_sizes <- c(150, 600, 1000)
+
+t_pwr_sir <- data.frame(
+  lapply(sample_sizes, simulate_t_pwr_sir)
+)
+colnames(t_pwr_sir) <- paste0("n_", sample_sizes)
+
+
+empirical_distribution <- function(n) {
+  var <- paste("n", n, sep = "_")
+  binwidth <- 3.5 * sd(t_pwr_sir[[var]]) / (n^(1 / 3))
+  ggplot(t_pwr_sir, aes(x = !!sym(var), y = after_stat(density))) +
+    geom_histogram(binwidth = binwidth, color = "black", fill = "white") +
+    geom_density(alpha = 0.2, fill = "blue") +
+    labs(x = "Data", y = "Density") +
+    theme_classic()
+
+  ggsave(
+    paste("t_pwr_sir_", var, ".png", sep = ""),
+    width = 10, height = 10, dpi = 300
+  )
+}
+
+
+for (n in sample_sizes) empirical_distribution(n)

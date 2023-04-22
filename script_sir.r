@@ -28,30 +28,30 @@ data <- rio_branco %>%
   filter(!duplicated(ID_VIVIENDA)) %>%
   select(NBI, XO)
 
-# Estimación de NBI mediante el diseño SIR con HT
+# Funciones para estimación del total poblacional
+# usando diseño SIR y estimador HT
 set.seed(0)
 
-n_pop <- nrow(data)
-n_simulations <- 1000
-
-sample_sir <- function(data, sample_size) {
-  sample(data, sample_size, replace = TRUE)
+sample_sir <- function(sampling_frame, sample_size) {
+  sample(sampling_frame, sample_size, replace = TRUE)
 }
 
-simulate_t_pi_sir <- function(sample_size) {
+simulate_t_pi_sir <- function(sampling_frame, sample_size) {
+  n_simulations <- 1000
+
   replicate(n_simulations, {
-    s <- sample_sir(data$NBI, sample_size)
-    p <- 1 - (1 - 1 / n_pop)^sample_size
+    s <- sample_sir(sampling_frame, sample_size)
+    p <- 1 - (1 - 1 / length(sampling_frame))^sample_size
     sum(s / p)
   })
 }
 
-empirical_distribution_sir <- function(n) {
+empirical_distribution_sir <- function(sampling_frame, sample_size, prefix) {
   # Simular
-  t_pi_sir <- data.frame(x = simulate_t_pi_sir(n))
+  t_pi_sir <- data.frame(x = simulate_t_pi_sir(sampling_frame, sample_size))
 
   # Regla de Scott para el ancho de los bins
-  binwidth <- 3.5 * sd(t_pi_sir$x) / (n^(1 / 3))
+  binwidth <- 3.5 * sd(t_pi_sir$x) / (sample_size^(1 / 3))
 
   # Graficar Histograma + Curva de densidad
   ggplot(t_pi_sir, aes(x = x, y = after_stat(density))) +
@@ -62,11 +62,16 @@ empirical_distribution_sir <- function(n) {
 
   # Guardar gráfico
   ggsave(
-    paste0("t_pi_sir_n_", n, ".png"),
+    paste0(prefix, "t_pi_sir_n_", sample_size, ".png"),
     width = 10, height = 10, dpi = 300
   )
 }
 
+# Estimación de la distribución empírica del estimador HT
+# para la variable NBI
+
 sample_sizes <- c(150, 600, 1000)
 
-for (n in sample_sizes) empirical_distribution_sir(n)
+for (sample_size in sample_sizes) {
+  empirical_distribution_sir(data$NBI, sample_size, prefix = "nbi_")
+}

@@ -81,3 +81,44 @@ sample_sizes <- c(150, 600, 1000)
 for (sample_size in sample_sizes) {
   empirical_distribution_sir(data$NBI, sample_size, prefix = "nbi_")
 }
+
+# Cálculo de Deff para el SIR
+
+v_si_t_pi <- function(sampling_frame, sample) {
+  pop_size <- length(sampling_frame)
+  sample_size <- length(sample)
+
+  ((pop_size^2) / sample_size) * (1 - sample_size / pop_size) * var(sample)
+}
+
+v_sir_t_pi <- function(sampling_frame, sample) {
+  pop_size <- length(sampling_frame)
+  sample_size <- length(sample)
+
+  # Probabilidades de inclusión SIR y variación
+  pi_k <- 1 - (1 - 1 / pop_size)^sample_size
+  pi_kl <- 1 - 2 * (1 - 1 / pop_size)^sample_size + (1 - 2 / pop_size)^sample_size
+  delta_kl <- pi_kl - pi_k^2
+  delta_kk <- pi_k - pi_k^2
+
+  # Doble suma de la característica cuando k != l
+  sum_y_kl <- outer(sample, sample)
+  diag(sum_y_kl) <- 0
+  sum_y_kl <- sum(sum_y_kl)
+
+  # Doble suma de la característica cuando k = l
+  sum_y_k <- sum(sample)
+
+  # Suma simple del cálculo de la varianza
+  sum_k <- delta_kk / pi_k^3 * sum_y_k
+
+  # Suma doble del cálculo de la varianza
+  sum_kl <- delta_kl / (pi_kl * pi_k^2) * sum_y_kl
+
+  # Varianza del estimador HT
+  sum_k + sum_kl
+}
+
+deff_sir_t_pi <- function(sampling_frame, sample) {
+  v_sir_t_pi(sampling_frame, sample) / v_si_t_pi(sampling_frame, sample)
+}

@@ -36,7 +36,7 @@ n_simulations <- 1000
 simulate_t_pi_sir <- function(sample_size) {
   replicate(n_simulations, {
     s <- sample(data$NBI, sample_size, replace = TRUE)
-    p <- replicate(sample_size, 1 - (1 - 1 / nrow(data))^sample_size)
+    p <- 1 - (1 - 1 / nrow(data))^sample_size
     sum(s / p)
   })
 }

@@ -33,7 +33,7 @@ set.seed(0)
 
 n_simulations <- 1000
 
-simulate_t_pwr_sir <- function(sample_size) {
+simulate_t_pi_sir <- function(sample_size) {
   replicate(n_simulations, {
     s <- sample(data$NBI, sample_size, replace = TRUE)
     p <- replicate(sample_size, 1 - (1 - 1 / nrow(data))^sample_size)
@@ -44,23 +44,23 @@ simulate_t_pwr_sir <- function(sample_size) {
 
 sample_sizes <- c(150, 600, 1000)
 
-t_pwr_sir <- data.frame(
-  lapply(sample_sizes, simulate_t_pwr_sir)
+t_pi_sir <- data.frame(
+  lapply(sample_sizes, simulate_t_pi_sir)
 )
-colnames(t_pwr_sir) <- paste0("n_", sample_sizes)
+colnames(t_pi_sir) <- paste0("n_", sample_sizes)
 
 
 empirical_distribution <- function(n) {
   var <- paste("n", n, sep = "_")
-  binwidth <- 3.5 * sd(t_pwr_sir[[var]]) / (n^(1 / 3))
-  ggplot(t_pwr_sir, aes(x = !!sym(var), y = after_stat(density))) +
+  binwidth <- 3.5 * sd(t_pi_sir[[var]]) / (n^(1 / 3))
+  ggplot(t_pi_sir, aes(x = !!sym(var), y = after_stat(density))) +
     geom_histogram(binwidth = binwidth, color = "black", fill = "white") +
     geom_density(alpha = 0.2, fill = "blue") +
     labs(x = "Data", y = "Density") +
     theme_classic()
 
   ggsave(
-    paste("t_pwr_sir_", var, ".png", sep = ""),
+    paste("t_pi_sir_", var, ".png", sep = ""),
     width = 10, height = 10, dpi = 300
   )
 }

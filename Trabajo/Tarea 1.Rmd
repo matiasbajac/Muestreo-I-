@@ -3,8 +3,9 @@ title: "Trabajo 1"
 author: "Matias Bajac - Lucas Pescetto - Andres Vidal"
 date: '2023-04-10'
 output:
-  html_document: default
   pdf_document: default
+  html_document: default
+  fig_caption: true
 ---
 
 ```{r setup, include=FALSE}
@@ -13,6 +14,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 
 ```{r librerias, include = FALSE}
+library(ggplot2)
 library(sampling)
 library(xtable)
 library(tidyverse)
@@ -66,6 +68,8 @@ Para el diseño Bernoulli, la muestra se hace simulando una U ~ (0,1) para cada 
 
 ```{r funciones}
 # Obtenemos el tamaño de la población y establecemos la cantidad de simulaciones
+set.seed(1234)
+
 N <- nrow(datos_hogares)
 R <- 1000
 
@@ -100,6 +104,7 @@ BER <- function(n, var) {
 ### Tamaño de muestra **n = 150**
 
 ```{r}
+set.seed(1234)
 t1_SI <-  SI(150, "NBI")
 t1_BER <- BER(150, "NBI")
 
@@ -110,11 +115,23 @@ ggplot(data.frame(t1_SI, t1_BER) %>% pivot_longer(cols = everything()), aes(x = 
     labels <- c("BER", "SI")
     return(labels[name])
   }))
+
+
+
+
+
+
+
+
+
+
 ```
 
 ### Tamaño de muestra **n = 600**
 
 ```{r}
+
+set.seed(1234)
 
 t2_SI <-  SI(600, "NBI")
 t2_BER <- BER(600, "NBI")
@@ -127,12 +144,15 @@ ggplot(data.frame(t2_SI, t2_BER) %>% pivot_longer(cols = everything()), aes(x = 
     return(labels[name])
   }))
 
+
+
 ```
 
 ### Tamaño de muestra **n = 1000**
 
 ```{r}
 
+set.seed(1234)
 t3_SI <-  SI(1000, "NBI")
 t3_BER <- BER(1000, "NBI")
 
@@ -151,8 +171,11 @@ ggplot(data.frame(t3_SI, t3_BER) %>% pivot_longer(cols = everything()), aes(x = 
 ### Tamaño de muestra **n = 150**
 
 ```{r}
+
+set.seed(1234)
 t4_SI <-  SI(150, "XO")
 t4_BER <- BER(150, "XO")
+
 
 ggplot(data.frame(t4_SI, t4_BER) %>% pivot_longer(cols = everything()), aes(x = value)) +   geom_histogram(fill='red',color='white',alpha=0.5, binwidth = 60) +
     theme_bw() + 
@@ -166,7 +189,7 @@ ggplot(data.frame(t4_SI, t4_BER) %>% pivot_longer(cols = everything()), aes(x = 
 ### Tamaño de muestra **n = 600**
 
 ```{r}
-
+set.seed(1234)
 t5_SI <-  SI(600, "XO")
 t5_BER <- BER(600, "XO")
 
@@ -183,7 +206,7 @@ ggplot(data.frame(t5_SI, t5_BER) %>% pivot_longer(cols = everything()), aes(x = 
 ### Tamaño de muestra **n = 1000**
 
 ```{r}
-
+set.seed(1234)
 t6_SI <-  SI(1000, "XO")
 t6_BER <- BER(1000, "XO")
 
@@ -224,18 +247,148 @@ Calculamos con la varianza teorica y la comparamos con la simulada
 ```{r varianzas teoricas, eval = FALSE, include = FALSE}
 
 # capaz agregar a función
-v_si <- N^2*(1-n/N)*var(datos_hogares2$NBI)/n
+N
+n1= 150
+n2=600
+n3= 1000
 
-v_ber <- ((1-150/N)/(150/N))*sum(datos_hogares$NBI**2)
+v_si1 <- N^2*(1-n1/N)*var(datos_hogares$NBI)/n1
+v_si2 <- N^2*(1-n2/N)*var(datos_hogares$NBI)/n2
+v_si3 =  N^2*(1-n3/N)*var(datos_hogares$NBI)/n3
+
+
+v_ber1 <- ((1-n1/N)/(n1/N))*sum(datos_hogares$NBI**2)
+v_ber2 <- ((1-n2/N)/(n2/N))*sum(datos_hogares$NBI**2)
+v_ber3 = ((1-n3/N)/(n3/N))*sum(datos_hogares$NBI**2)
+
 ```
 
 # cuadro de texto con max y min
 
-```{r}
+```{r,eval=FALSE}
 
 annotate("text", x = 495, y = 290, hjust = 1, vjust = 1, label = paste("min:", round(min(t3_SI),2), "\n", "max:", round(max(t3_BER),2)), size = 3) +
   geom_rect(aes(xmin = 425, xmax = 500, ymin = 250, ymax = 300), fill = NA, color = "black")
 
 
+```
+#tabla comparativa 
+```{r, results = 'asis', message = FALSE}
+options(xtable.comment = FALSE)
+n1= 150
+
+v_si1 <- N^2*(1-n1/N)*var(datos_hogares$NBI)/n1
+v_ber1 <- ((1-n1/N)/(n1/N))*sum(datos_hogares$NBI**2)
+
+
+df = datos_hogares %>%  summarise( total_NBI = sum(NBI), total_estimado = mean(t1_SI), varianza_estimada= var(t1_SI)  ) %>%  mutate( varianza_teorica  =  v_si1)
+
+df2 = datos_hogares %>%  summarise( total_NBI = sum(NBI), total_estimado = mean(t1_BER), varianza_estimada= var(t1_BER))  %>%  mutate(varianza_teorica =  v_ber1)
+
+
+df3 = rbind(df,df2) 
+
+ df3$diseño<- c("SI", "BER", rep(NA, nrow(df3) - 2))
+ df3 <- df3[, c("diseño", names(df3)[-1])]
+
+ df3= df3[,-5]
+
+df3 = df3 %>%  mutate( deff= var(t1_BER)/var(t1_SI))  %>%  mutate( total_NBI = 340)
+
+
+df_long <- df3 %>% 
+  pivot_longer(cols = -diseño, names_to = "variable", values_to = "value")
+
+df_f = df_long %>%  pivot_wider(names_from = diseño, values_from = value)
+ 
+
+
+df_f %>% xtable(caption = "Comparacion de estimacion entre diseño SI y BER de la variable NBI  para n = 150 ")  %>%    print(caption.placement = 'top', include.rownames = FALSE)
+
+                                                                                                         
+
+
+
+```
+
+```{r, results = 'asis', message = FALSE}
+options(xtable.comment = FALSE)
+
+n2=600
+
+
+
+
+v_si2 <- N^2*(1-n2/N)*var(datos_hogares$NBI)/n2
+v_ber2 <- ((1-n2/N)/(n2/N))*sum(datos_hogares$NBI**2)
+
+df.1 = datos_hogares %>%  summarise( total_NBI = sum(NBI), total_estimado = mean(t2_SI), varianza_estimada= var(t2_SI)  ) %>%  mutate( varianza_teorica  =  v_si2)
+
+df.2 = datos_hogares %>%  summarise( total_NBI = sum(NBI), total_estimado = mean(t2_BER), varianza_estimada= var(t2_BER))  %>%  mutate(varianza_teorica =  v_ber2)
+
+
+df.3 = rbind(df.1,df.2) 
+
+ df.3$diseño <- c("SI", "BER", rep(NA, nrow(df.3) - 2))
+ df.3 <- df.3[, c("diseño", names(df.3)[-1])]
+
+ df.3= df.3[,-5]
+
+df.3 = df.3 %>%  mutate( deff= var(t2_BER)/var(t2_SI))  %>%  mutate( total_NBI = 340)
+
+
+df_long2 <- df.3 %>% 
+  pivot_longer(cols = -diseño, names_to = "variable", values_to = "value")
+
+df_f2 = df_long2 %>%  pivot_wider(names_from = diseño, values_from = value)
+ 
+df_f2 %>% xtable(caption = "Comparacion de estimacion entre diseño SI y BER  de la variable NBI para n = 600 ")  %>%    print(caption.placement = 'top', include.rownames = FALSE)
+
+```
+```{r,results = 'asis', message = FALSE}
+
+options(xtable.comment = FALSE)
+
+n3= 1000
+v_si3 =  N^2*(1-n3/N)*var(datos_hogares$NBI)/n3
+v_ber3 = ((1-n3/N)/(n3/N))*sum(datos_hogares$NBI**2)
+
+
+df.1 = datos_hogares %>%  summarise( total_NBI = sum(NBI), total_estimado = mean(t3_SI), varianza_estimada= var(t3_SI)  ) %>%  mutate( varianza_teorica  =  v_si3)
+
+df.2 = datos_hogares %>%  summarise( total_NBI = sum(NBI), total_estimado = mean(t3_BER), varianza_estimada= var(t3_BER))  %>%  mutate(varianza_teorica =  v_ber3)
+
+
+df.3 = rbind(df.1,df.2) 
+
+ df.3$diseño <- c("SI", "BER", rep(NA, nrow(df.3) - 2))
+ df.3 <- df.3[, c("diseño", names(df.3)[-1])]
+
+ df.3= df.3[,-5]
+
+df.3 = df.3 %>%  mutate( deff= var(t3_BER)/var(t3_SI))  %>%  mutate( total_NBI = 340)
+
+
+df_long2 <- df.3 %>% 
+  pivot_longer(cols = -diseño, names_to = "variable", values_to = "value")
+
+df_f2 = df_long2 %>%  pivot_wider(names_from = diseño, values_from = value)
+ 
+df_f2 %>% xtable(caption = "Comparacion de estimacion entre diseño SI y BER de la variable NBI  para n = 1000 ")  %>%    print(caption.placement = 'top', include.rownames = FALSE)
+
+
+```
+
+
+
+
+
+
+
+
+
+
+```{r}
+deff1 = var(t1_BER)/var(t1_SI)
 ```
 

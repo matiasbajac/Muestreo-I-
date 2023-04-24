@@ -295,15 +295,24 @@ t_nbi_dist <- empirical_distribution_sir(
 ```
 
 A seguir podemos observar las estimaciones puntuales para el total poblacional, los promedios empíricos
-y el sesgo (la diferencia entre ambos) para cada tamaño de muestra.
-Observamos bajo sesgo, lo cual puede visualizarse en los gráficos arriba.
-Destacamos que, como esperado, el sesgo disminuye a medida que aumenta el tamaño de la muestra.
+y el sesgo de cada uno (la diferencia con el parámetro real) para cada tamaño de muestra.
+Observamos bajo sesgo de la distribución empírica, lo cual puede visualizarse en los gráficos arriba.
+El estimado, sin embargo, presenta un sesgo de aproximadamente 20 unidades, con una leve reducción a medida que aumenta el tamaño de la muestra.
 
 ```{r sir_nbi_estimate, echo=FALSE}
 t_nbi_estimates <- estimate_totals("nbi", sir_designs)
 a <- show_results("t_estimate", t_nbi_estimates)
 b <- show_results("t_dist_mean", t_nbi_dist$means)
-c <- as.data.frame(cbind(a, b, bias = abs(mapply("-", a, b))))
+c <- as.data.frame(
+  cbind(
+    a,
+    bias = abs(mapply("-", a, t_nbi)),
+    b,
+    bias = abs(mapply("-", b, t_nbi)),
+    difference = abs(mapply("-", a, b))
+  ),
+)
+
 c
 ```
 
@@ -389,12 +398,21 @@ t_xo_dist <- empirical_distribution_sir(
 ```
 
 
+Respecto a las estimaciones puntuales para el total de `xo`, ov
 
 ```{r sir_xo_estimate, echo=FALSE}
 t_xo_estimates <- estimate_totals("xo", sir_designs)
 a <- show_results("t_estimate", t_xo_estimates)
 b <- show_results("t_dist_mean", t_xo_dist$means)
-c <- as.data.frame(cbind(a, b, bias = abs(mapply("-", a, b))))
+c <- as.data.frame(
+  cbind(
+    a,
+    bias = abs(mapply("-", a, t_xo)),
+    b,
+    bias = abs(mapply("-", b, t_xo)),
+    difference = abs(mapply("-", a, b))
+  )
+)
 c
 ```
 

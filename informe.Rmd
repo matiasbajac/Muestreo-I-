@@ -305,8 +305,8 @@ El bajo error al estimar la varianza del estimador puede apreciarse también en 
 al observar la semejanza entre la curva roja (densidad teórica asintótica) y la curva azul (densidad empírica).
 
 ```{r sir_nbi_estimate_var, echo=FALSE}
-a <- show_results("Var(t_nbi)", lapply(sir_t_nbi_estimates, SE))
-b <- show_results("Var(t_dist)", sir_t_nbi_dist$standard_errors)
+a <- show_results("SE(t_nbi)", lapply(sir_t_nbi_estimates, SE))
+b <- show_results("SE(t_dist)", sir_t_nbi_dist$standard_errors)
 c <- as.data.frame(cbind(a, b, difference = abs(mapply("-", a, b))))
 c
 ```
@@ -398,8 +398,8 @@ c
 Respecto al desvío estándar del estimador del total de `xo`, observamos que la diferencia entre el desvío empírico y el teórico estimada es pequeña y se reduce a medida que aumenta el tamaño de muestra.
 
 ```{r sir_xo_estimate_var, echo=FALSE}
-a <- show_results("Var(t_xo)", lapply(sir_t_xo_estimates, SE))
-b <- show_results("Var(t_dist)", sir_t_xo_dist$standard_errors)
+a <- show_results("SE(t_xo)", lapply(sir_t_xo_estimates, SE))
+b <- show_results("SE(t_dist)", sir_t_xo_dist$standard_errors)
 c <- as.data.frame(cbind(a, b, difference = abs(mapply("-", a, b))))
 c
 ```
@@ -528,11 +528,13 @@ c <- as.data.frame(
 c
 ```
 
-TODO: comentar sobre al varianza
+A seguir presentamos el estimador del desvío y el desvío empírico del estimador del total poblacional para la variable `nbi`.
+Destacamos la baja diferencia entre ellos, lo que indica que el estimador del desvío no presenta un gran sesgo para el desvío del estimador.
+Además, se observa que esta diferencia se reduce al aumentar el tamaño de muestra, destacando la reducción del 57% al aumentar de 150 a 600 elementos.
 
 ```{r si_nbi_estimate_var, echo=FALSE}
-a <- show_results("Var(t_nbi)", lapply(si_t_nbi_estimates, SE))
-b <- show_results("Var(t_dist)", si_t_nbi_dist$standard_errors)
+a <- show_results("SE(t_nbi)", lapply(si_t_nbi_estimates, SE))
+b <- show_results("SE(t_dist)", si_t_nbi_dist$standard_errors)
 c <- as.data.frame(cbind(a, b, difference = abs(mapply("-", a, b))))
 c
 ```
@@ -585,8 +587,11 @@ si_t_xo_dist <- empirical_distribution(
 )
 ```
 
-TODO: terminar de escribir
-Respecto a las estimaciones puntuales para el total de `xo`, ov
+A seguir presentamos el valor y los promedios empíricos del estimador HT para cada tamaño de muestra.
+Se reportan además su sesgos (diferencia de cada uno con el parámetro real) y la diferencia entre ellos.
+Destacamos el bajo sesgo del promedio empírico y la reducción del sesgo del estimador a medida que aumenta el tamaño de muestra.
+Nuevamente, se observa una diferencia mucho más acentuada al aumentar la muestra de 150 a 600 elementos.
+Esto no ocurre al pasar de 600 a 1000 elementos.
 
 ```{r si_xo_estimate, echo=FALSE}
 si_t_xo_estimates <- estimate_totals("xo", si_designs)
@@ -604,23 +609,27 @@ c <- as.data.frame(
 c
 ```
 
-TODO: comentar sobre la varianza
+Sobre el desvío estimado para el estimador, destacamos su reducción al aumentar el tamaño de muestra
+y que la diferencia con el desvío empírico es pequeña.
 
 ```{r si_xo_estimate_var, echo=FALSE}
-a <- show_results("Var(t_xo)", lapply(sir_t_xo_estimates, SE))
-b <- show_results("Var(t_dist)", sir_t_xo_dist$standard_errors)
+a <- show_results("SE(t_xo)", lapply(sir_t_xo_estimates, SE))
+b <- show_results("SE(t_dist)", sir_t_xo_dist$standard_errors)
 c <- as.data.frame(cbind(a, b, difference = abs(mapply("-", a, b))))
 c
 ```
 
-```{r si_xo_estimate_quantiles,  echo=FALSE}
-si_t_xo_dist$quantiles$range <- si_t_xo_dist$quantiles$"97.5%" - si_t_xo_dist$quantiles$"2.5%"
-si_t_xo_dist$quantiles
+A seguir presentamos los intervalos de confianza para el total de la variable `xo` asumiendo la normalidad del estimador HT.
+Respecto al rango de los intervalos, observamos una reducción del 52% al aumentar el tamaño de muestra de 150 a 600 y del 26$ al aumentar de 600 a 1000.
+Esto evidencia que al aumentar la muestra aumenta también la validez del supuesto de normalidad.
+
+```{r si_xo_estimate_confint, echo=FALSE}
+si_t_xo_confint <- as.data.frame(do.call(rbind, lapply(si_t_xo_estimates, confint_norm)))
+si_t_xo_confint$range <- si_t_xo_confint$"97.5%" - si_t_xo_confint$"2.5%"
+rownames(si_t_xo_confint) <- sample_sizes
+si_t_xo_confint
 ```
 
-TODO: mejorar comentario
-
-Podemos observar en este caso que los intervalos de confianza empirico y asumiendo normalidad son muy similares para cualquier tamaño de muestra 
 
 # Diseño de muestreo BER
 
@@ -795,8 +804,8 @@ c
 En cuanto a los errores estándar, podemos observar que en la muestra observada difieren en gran medida de la varianza empírica. El patrón que puede notarse es que al aumentar el tamaño de muestra, se reduce tanto el desvío como la diferencia entre el observado y el empírico.
 
 ```{r ber_xo_estimate_var, echo=FALSE}
-a <- show_results("Var(t_xo)", lapply(ber_t_xo_estimates, SE))
-b <- show_results("Var(t_dist)", ber_t_xo_dist$standard_errors)
+a <- show_results("SE(t_xo)", lapply(ber_t_xo_estimates, SE))
+b <- show_results("SE(t_dist)", ber_t_xo_dist$standard_errors)
 c <- as.data.frame(cbind(a, b, difference = abs(mapply("-", a, b))))
 c
 ```

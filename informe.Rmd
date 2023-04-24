@@ -398,7 +398,8 @@ sir_t_xo_dist <- empirical_distribution(
 ```
 
 
-Respecto a las estimaciones puntuales para el total de `xo`, ov
+Respecto a las estimaciones puntuales para el total de `xo`, observamos una reducción considerable del sesgo del estimador del total poblacional.
+Destacamos la reducción en el sesgo de 60% al aumentar el tamaño de muestra de 150 a 600 y de 82% al aumentar el tamaño de muestra de 600 a 1000.
 
 ```{r sir_xo_estimate, echo=FALSE}
 sir_t_xo_estimates <- estimate_totals("xo", sir_designs)
@@ -416,6 +417,8 @@ c <- as.data.frame(
 c
 ```
 
+Respecto al desvío estándar del estimador del total de `xo`, observamos que la diferencia entre el desvío empírico y el teórico estimada es pequeña y se reduce a medida que aumenta el tamaño de muestra.
+
 ```{r sir_xo_estimate_var, echo=FALSE}
 a <- show_results("Var(t_xo)", lapply(sir_t_xo_estimates, SE))
 b <- show_results("Var(t_dist)", sir_t_xo_dist$standard_errors)
@@ -423,10 +426,17 @@ c <- as.data.frame(cbind(a, b, difference = abs(mapply("-", a, b))))
 c
 ```
 
+Respecto al efecto diseño, se observan resultados semejantes a aquellos obtenidos para la variable `nbi`.
+El efecto diseño es mayor que 1 para todos los tamaños de muestra, por lo que esta estrategia de muestreo genera reducción 
+en la eficiencia en varianza al estimar la variable `xo`. Por lo tanto, el diseño SI es más eficiente para este problema.
+
 ```{r sir_xo_estimate_deff, echo=FALSE}
 sir_t_xo_estimates_deff <- lapply(sir_t_xo_estimates, deff)
 show_results("deff", sir_t_xo_estimates_deff)
 ```
+
+Respecto al intervalo de confianza asumiento normalidad, lógicamente observamos un aumento significativo en la precisión del intervalo al aumentar el tamaño de muestra.
+Destacamos el aumento de precisión (o reducción en el rango) de 50% al pasar de 150 a 600 elementos en la muestra.
 
 ```{r sir_xo_estimate_confint, echo=FALSE}
 sir_t_xo_confint <- as.data.frame(do.call(rbind, lapply(sir_t_xo_estimates, confint_norm)))

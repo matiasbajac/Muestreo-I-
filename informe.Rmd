@@ -211,6 +211,7 @@ empirical_distribution <-
   }
 ```
 
+
 # Diseño de muestreo SIR
 
 En esta parte analizamos el diseño **Simple con Reposición (SIR)**.
@@ -443,4 +444,170 @@ sir_t_xo_confint <- as.data.frame(do.call(rbind, lapply(sir_t_xo_estimates, conf
 sir_t_xo_confint$range <- sir_t_xo_confint$"97.5%" - sir_t_xo_confint$"2.5%"
 rownames(sir_t_xo_confint) <- sample_sizes
 sir_t_xo_confint
+```
+
+# Diseño de muestreo SI
+
+## Definición del diseño
+
+Definimos la función `get_si_design` que recibe una muestra y genera un objeto de diseño de muestreo
+con `svydesign` del paquete `survey` de la siguiente manera:
+
+```{r si_design}
+get_si_design <- function(sample, expected_sample_size = nrow(sample)) {
+  svydesign(
+    ids = ~1,
+    data = sample,
+    probs = rep(nrow(sample) / N, nrow(sample)),
+    fpc = rep(nrow(sample) / N, nrow(sample))
+  )
+}
+```
+
+## Algoritmo de selección
+
+Definimos la función `get_sir_sample` que recibe el tamaño de la muestra y devuelve una muestra de tamaño `n` utilizando el método SIR.
+Específicamente, esto se implementa utilizando la función `srswr` del paquete `sampling`.
+
+```{r si_sampling}
+get_si_sample <- function(sample_size) {
+  index <- srswor(sample_size, N)
+  getdata(data, index)
+}
+```
+
+## Obtener muestras finales
+
+Utilizamos la función `get_si_sample` para obtener muestras de tamaño 150, 600 y 1000
+y almacenarlas en la lista `si_samples`.
+
+```{r si_samples}
+sample_sizes <- c(150, 600, 1000)
+si_samples <- lapply(sample_sizes, get_si_sample)
+names(si_samples) <- sample_sizes
+```
+
+## Obtener objetos de diseño finales
+
+Utilizamos la función `get_si_design` para obtener los objetos de diseño de muestreo finales
+para cada muestra. Almacenamos estos objetos en la lista `si_designs`.
+
+```{r si_designs}
+si_designs <- lapply(si_samples, get_si_design)
+```
+
+## Análisis de NBI
+
+### Distribución empírica del estimador para el total de NBI
+
+```{r si_nbi_estimate_dist, echo=FALSE, results='show'}
+si_t_nbi_dist <- empirical_distribution(
+  "nbi",
+  sample_sizes,
+  get_si_sample,
+  get_si_design
+)
+```
+
+```{r si_nbi_estimate, echo=FALSE}
+si_t_nbi_estimates <- estimate_totals("nbi", si_designs)
+a <- show_results("t_estimate", si_t_nbi_estimates)
+b <- show_results("t_dist_mean", si_t_nbi_dist$means)
+c <- as.data.frame(
+  cbind(
+    a,
+    bias = abs(mapply("-", a, t_nbi)),
+    b,
+    bias = abs(mapply("-", b, t_nbi)),
+    difference = abs(mapply("-", a, b))
+  ),
+)
+
+c
+```
+
+```{r si_nbi_estimate_var, echo=FALSE}
+a <- show_results("Var(t_nbi)", lapply(si_t_nbi_estimates, SE))
+b <- show_results("Var(t_dist)", si_t_nbi_dist$standard_errors)
+c <- as.data.frame(cbind(a, b, difference = abs(mapply("-", a, b))))
+c
+```
+
+### Efecto diseño del estimador para el total de NBI
+
+```{r si_nbi_estimate_deff, echo=FALSE}
+si_t_nbi_estimates_deff <- lapply(si_t_nbi_estimates, deff)
+show_results("deff", si_t_nbi_estimates_deff)
+```
+
+### Intervalos de confianza para el total de NBI
+
+```{r si_nbi_estimate_quantiles, echo=FALSE}
+si_t_nbi_dist$quantiles$range <- si_t_nbi_dist$quantiles$"97.5%" - si_t_nbi_dist$quantiles$"2.5%"
+si_t_nbi_dist$quantiles
+```
+
+```{r si_nbi_estimate_confint, echo=FALSE}
+si_t_nbi_confint <- as.data.frame(do.call(rbind, lapply(si_t_nbi_estimates, confint_norm)))
+si_t_nbi_confint$range <- si_t_nbi_confint$"97.5%" - si_t_nbi_confint$"2.5%"
+rownames(si_t_nbi_confint) <- sample_sizes
+si_t_nbi_confint
+```
+
+## Análisis de XO
+
+### Distribución empírica del estimador para el total de XO
+
+```{r si_xo_estimate_dist, results='show'}
+si_t_xo_dist <- empirical_distribution(
+  "xo",
+  sample_sizes,
+  get_si_sample,
+  get_si_design
+)
+```
+
+```{r si_xo_estimate, echo=FALSE}
+si_t_xo_estimates <- estimate_totals("xo", si_designs)
+a <- show_results("t_estimate", si_t_xo_estimates)
+b <- show_results("t_dist_mean", si_t_xo_dist$means)
+c <- as.data.frame(
+  cbind(
+    a,
+    bias = abs(mapply("-", a, t_xo)),
+    b,
+    bias = abs(mapply("-", b, t_xo)),
+    difference = abs(mapply("-", a, b))
+  ),
+)
+
+c
+```
+
+```{r si_xo_estimate_var, echo=FALSE}
+a <- show_results("Var(t_xo)", lapply(si_t_xo_estimates, SE))
+b <- show_results("Var(t_dist)", si_t_xo_dist$standard_errors)
+c <- as.data.frame(cbind(a, b, difference = abs(mapply("-", a, b))))
+c
+```
+
+### Efecto diseño del estimador para el total de XO
+
+```{r si_xo_estimate_deff, echo=FALSE}
+si_t_xo_estimates_deff <- lapply(si_t_xo_estimates, deff)
+show_results("deff", si_t_xo_estimates_deff)
+```
+
+### Intervalos de confianza para el total de XO
+
+```{r si_xo_estimate_quantiles, echo=FALSE}
+si_t_xo_dist$quantiles$range <- si_t_xo_dist$quantiles$"97.5%" - si_t_xo_dist$quantiles$"2.5%"
+si_t_xo_dist$quantiles
+```
+
+```{r si_xo_estimate_confint, echo=FALSE}
+si_t_xo_confint <- as.data.frame(do.call(rbind, lapply(si_t_xo_estimates, confint_norm)))
+si_t_xo_confint$range <- si_t_xo_confint$"97.5%" - si_t_xo_confint$"2.5%"
+rownames(si_t_xo_confint) <- sample_sizes
+si_t_xo_confint
 ```

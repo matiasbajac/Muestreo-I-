@@ -23,7 +23,18 @@ library(gridExtra)
 set.seed(0)
 ```
 
-# Preprocesamiento de los datos
+# Introducción
+
+Partimos de la base de datos del censo de hogares de 2011 en Rio Branco
+para estudiar los diseños **Simple sin reposición (SI)**, **Simple con reposición (SIR)** y **Bernoulli (BER)**.
+Nos interesa estimar el total poblacional de dos variables calculadas a partir de la base de datos en cuestión:
+
+- `nbi`: vale 0 si el hogar tiene 3 o menos necesidades básicas insatisfechas (NBI) y 1 si tiene 4 o más.
+- `xo`: vale 0 si el hogar tiene algún dispositivo, y 1 en caso de no contar con ninguno.
+
+Esto es, estaremos estimando la cantidad de hogares con 4 o más NBI y la cantidad de hogares sin computadoras XO.
+Además del cálculo de las variables `nbi` y `xo` a partir de la base de datos, esto requirió remover observaciones duplicadas,
+puesto que la base está a nivel de personas e interesa calcular los totales a nivel de hogares.
 
 ```{r data_processing, include=FALSE}
 is_nbi_missing <- function(x) x %in% c(8, 9)
@@ -261,6 +272,7 @@ sir_designs <- lapply(sir_samples, get_sir_design)
 ## Análisis de NBI
 
 En esta parte analizamos los resultados obtenidos para la variable `nbi`.
+Interesa estimar el total de hogares con 4 o más NBI.
 
 ### Distribución empírica del estimador para el total de NBI
 
@@ -359,14 +371,48 @@ Esto es razonable, puesto que la normalidad del estimador del total poblacional 
 
 ## Análisis de XO
 
+En esta parte se presenta el mismo procedimiento realizado para la variable `nbi`, pero considerando a la variable `xo` como característica de interés.
+Interesa estimar el total de hogares con al menos un dispositivo XO.
+
 ### Distribución empírica del estimador para el total de XO
 
+A seguir presentamos los gráficos de la distribución empírica del estimador del total de `xo`.
+Destacamos la similiridad entre la distribución empírica (área azul) y la distribución teórica (área roja).
+
 ```{r sir_xo_estimate_dist, echo=FALSE, results='show'}
-# empirical_distribution_sir(
-#   "xo",
-#   sample_sizes,
-#   get_sir_sample,
-#   get_sir_design
-# )
+t_xo_dist <- empirical_distribution_sir(
+  "xo",
+  sample_sizes,
+  get_sir_sample,
+  get_sir_design
+)
 ```
 
+
+
+```{r sir_xo_estimate, echo=FALSE}
+t_xo_estimates <- estimate_totals("xo", sir_designs)
+a <- show_results("t_estimate", t_xo_estimates)
+b <- show_results("t_dist_mean", t_xo_dist$means)
+c <- as.data.frame(cbind(a, b, bias = abs(mapply("-", a, b))))
+c
+```
+
+```{r sir_xo_estimate_var, echo=FALSE}
+a <- show_results("Var(t_xo)", lapply(t_xo_estimates, SE))
+b <- show_results("Var(t_dist)", t_xo_dist$standard_errors)
+c <- as.data.frame(cbind(a, b, difference = abs(mapply("-", a, b))))
+c
+```
+
+```{r sir_xo_estimate_deff, echo=FALSE}
+t_xo_estimates_deff <- lapply(t_xo_estimates, deff)
+show_results("deff", t_xo_estimates_deff)
+```
+
+```{r sir_xo_estimate_confint, echo=FALSE}
+t_xo_confint <- as.data.frame(do.call(rbind, lapply(t_xo_estimates, confint_norm)))
+t_xo_confint$range <- t_xo_confint$"97.5%" - t_xo_confint$"2.5%"
+rownames(t_xo_confint) <- sample_sizes
+t_xo_confint
+```

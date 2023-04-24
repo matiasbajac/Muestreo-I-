@@ -37,8 +37,8 @@ load("datos.RData")
 data <- rio_branco %>%
   mutate(across(is_nbi_var(), ~ mutate_nbi(.))) %>%
   mutate(NBI_TOTAL = rowSums(select_nbi(.)), XO = has_xo(.)) %>%
-  mutate(NBI = has_nbi(.)) %>%
-  filter(!duplicated(ID_VIVIENDA)) %>%
+  mutate(NBI = has_nbi(.), ID = paste(ID_VIVIENDA, HOGID)) %>%
+  filter(!duplicated(ID)) %>%
   select(nbi = NBI, xo = XO)
 
 t_nbi <- sum(data$nbi)
@@ -52,6 +52,12 @@ N <- nrow(data)
 
 ## Funciones Auxiliares
 
+Definimos funciones auxiliares para facilitar el resto del análisis.
+- `estimate_total` recibe un nombre de variable y un diseño de muestreo para estimar un total poblacional. Envuelve la función `svytotal` del paquete `survey` para facilitar su uso.
+- `estimate_totals` recibe un nombre de variable y una lista de diseños de muestreo y estima el total poblacional para cada diseño. Se utiliza especialmente para automatizar la aplicación sobre varios tamaños de muestra.
+- `show_results` recibe un nombre de variable y una lista de resultados para mostrarlos de forma estándar.
+- `confint_norm` recibe un estimador (resultado de `svytotal`) y calcula el intervalo de confianza del 95% asumiendo distribución normal.
+
 ```{r auxiliar}
 estimate_total <- function(var, design) {
   svytotal(as.formula(paste0("~", var)), design, deff = TRUE)
@@ -64,6 +70,18 @@ estimate_totals <- function(var, design_list) {
 show_results <- function(var, named_result_list) {
   as.data.frame(t(named_result_list), row.names = var)
 }
+
+confint_norm <- function(t_estimate) {
+  t <- coef(t_estimate)
+  se <- SE(t_estimate)
+
+  ci <- cbind(
+    t - qnorm(0.975) * se,
+    t + qnorm(0.975) * se
+  )
+  colnames(ci) <- c("2.5%", "97.5%")
+  ci
+}
 ```
 
 
@@ -72,7 +90,7 @@ show_results <- function(var, named_result_list) {
 
 ```{r estimate_dist_sample}
 sample_t_estimate <- function(var, sample_size, get_sample, get_design) {
-  n_simulations <- 2000
+  n_simulations <- 1000
 
   replicate(n_simulations, {
     sample <- get_sample(sample_size)
@@ -116,7 +134,7 @@ empirical_distribution_sir <-
 
     grid.arrange(grobs = plots, padding = 5)
 
-    t(as.data.frame(quantiles))
+    as.data.frame(t(as.data.frame(quantiles)))
   }
 ```
 
@@ -130,7 +148,8 @@ get_sir_design <- function(sample) {
   svydesign(
     ids = ~1,
     data = sample,
-    probs = 1 - (1 - 1 / N)^nrow(sample),
+    # Pesos para el estimador t_pwr
+    probs = nrow(sample) / N
   )
 }
 ```
@@ -181,13 +200,21 @@ show_results("nbi", t_nbi_estimates)
 
 ```{r sir_nbi_estimate_deff}
 t_nbi_estimates_deff <- lapply(t_nbi_estimates, deff)
-show_results("nbi", t_nbi_estimates)
+show_results("nbi", t_nbi_estimates_deff)
 ```
 
 ### Intervalos de confianza para el total de NBI
 
-```{r sir_nbi_estimate_confint}
+```{r sir_nbi_estimate_quantiles}
+t_nbi_quantiles$range <- t_nbi_quantiles$"97.5%" - t_nbi_quantiles$"2.5%"
 t_nbi_quantiles
+```
+
+```{r sir_nbi_estimate_confint}
+t_nbi_confint <- do.call(rbind, lapply(t_nbi_estimates, confint_norm))
+t_nbi_confint$range <- t_nbi_confint$"97.5%" - t_nbi_confint$"2.5%"
+rownames(t_nbi_confint) <- sample_sizes
+t_nbi_confint
 ```
 
 ## Análisis de XO

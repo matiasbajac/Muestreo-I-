@@ -448,6 +448,12 @@ sir_t_xo_confint
 
 # Diseño de muestreo SI
 
+En esta parte analizamos el diseño **Simple sin reposición (SI)**.
+En primera instancia, definimos los artefactos necesarios para utilizar nuestro marco de trabajo.
+Luego, estimamos la distribución empírica del estimador del total poblacional para `nbi` y para `xo`
+y comparamos sus características con el parámetro poblacional y con el estimador teórico de la varianza del estimador poblacional.
+
+
 ## Definición del diseño
 
 Definimos la función `get_si_design` que recibe una muestra y genera un objeto de diseño de muestreo
@@ -464,10 +470,14 @@ get_si_design <- function(sample, expected_sample_size = nrow(sample)) {
 }
 ```
 
+En este caso, la estrategia de muestreo es diseño SI con estimador $t_\pi$.
+Entonces, la probabilidad de inclusión de cada unidad es la misma para todas las unidades y está definida como
+$n \ N$, dónde $n$ es el tamaño de la muestra y $N$ es el tamaño de la población. Se agrega el parámetro `fpc` para indicar que el muestreo es sin reemplazo.
+
 ## Algoritmo de selección
 
-Definimos la función `get_sir_sample` que recibe el tamaño de la muestra y devuelve una muestra de tamaño `n` utilizando el método SIR.
-Específicamente, esto se implementa utilizando la función `srswr` del paquete `sampling`.
+Definimos la función `get_si_sample` que recibe el tamaño de la muestra y devuelve una muestra de tamaño `n` utilizando el método SIR.
+Específicamente, esto se implementa utilizando la función `srswor` del paquete `sampling`.
 
 ```{r si_sampling}
 get_si_sample <- function(sample_size) {
@@ -499,6 +509,10 @@ si_designs <- lapply(si_samples, get_si_design)
 ## Análisis de NBI
 
 ### Distribución empírica del estimador para el total de NBI
+
+A seguir presentamos los gráficos con la distribución empírica del estimador del total de `nbi` para cada tamaño de muestra.
+Destacamos la similitud de la densidad empírica (curva azul) a la densidad asintótica (curva roja), especialmente al aumentar el tamaño de muestra.
+También podemos observar bajo sesgo, puesto que la media de las distribucion empírica (línea vertical azul) se encuentra cerca al parámetro poblacional (línea vertical roja).
 
 ```{r si_nbi_estimate_dist, echo=FALSE, results='show'}
 si_t_nbi_dist <- empirical_distribution(

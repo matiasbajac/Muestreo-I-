@@ -50,13 +50,19 @@ N <- nrow(data)
 
 # Distribución empírica del estimador
 
+En esta parte presentamos el marco de trabajo del análisis.
+Definimos funciones auxiliares para automatizar el análisis y estandarizar y simplificar la presentación de los resultados.
+El objetivo es abstraer los procedimientos a ser realizaos de los tamaños de muestra y de los diseños de muestreo.
+Para esto, utilizamos el paquete `survey`.
+
 ## Funciones Auxiliares
 
-Definimos funciones auxiliares para facilitar el resto del análisis.
+Definimos funciones auxiliares para facilitar el resto del análisis:
+
 - `estimate_total` recibe un nombre de variable y un diseño de muestreo para estimar un total poblacional. Envuelve la función `svytotal` del paquete `survey` para facilitar su uso.
 - `estimate_totals` recibe un nombre de variable y una lista de diseños de muestreo y estima el total poblacional para cada diseño. Se utiliza especialmente para automatizar la aplicación sobre varios tamaños de muestra.
 - `show_results` recibe un nombre de variable y una lista de resultados para mostrarlos de forma estándar.
-- `confint_norm` recibe un estimador (resultado de `svytotal`) y calcula el intervalo de confianza del 95% asumiendo distribución normal.
+- `confint_norm` recibe un estimador (resultado de `svytotal`) y calcula el intervalo de confianza al 95% asumiendo distribución normal.
 
 ```{r auxiliar}
 estimate_total <- function(var, design) {
@@ -84,9 +90,15 @@ confint_norm <- function(t_estimate) {
 }
 ```
 
-
-
 ## Muestreo del estimador
+
+Obtenemos 1000 muestras y calculamos el estimador del total poblacional para cada una de ellas.
+La función `sample_t_estimate` implementa este procedimiento genéricamente, recibiendo como parámetros:
+
+- `var` La variable que se desea estimar
+- `sample_size` el tamaño de las muestras que se deben tomar
+- `get_sample` una función que dado valor `n` devuelve una muestra de tamaño `n`
+- `get_design` una función que dada una muestra devuelve un objeto de diseño de muestreo generado con `svydesign`
 
 ```{r estimate_dist_sample}
 sample_t_estimate <- function(var, sample_size, get_sample, get_design) {
@@ -99,6 +111,12 @@ sample_t_estimate <- function(var, sample_size, get_sample, get_design) {
   })
 }
 ```
+
+Utiliza `estimate_total` para estimar el total poblacional para la variable indicada.
+Además, definimos la función `empirical_distribution_sir` (cuyo código no está expuesto en el informe)
+que toma los mismos parámetros, utiliza `sample_t_estimate`, grafica la distribución empírica
+y retorna resúmenes de la distribución empírica del estimador, como la media, la varianza y los intervalos de confianza empíricos al 95% de confianza,
+para cada tamaño de muestra.
 
 ```{r estimate_dist_plots, include=FALSE}
 empirical_distribution_sir <-
@@ -119,42 +137,76 @@ empirical_distribution_sir <-
         geom_vline(
           aes(xintercept = get(paste0("t_", var))),
           color = "red",
-          linewidth = 1
+          linewidth = 0.7
         ) +
-        labs(x = var, y = "Density") +
+        geom_vline(
+          aes(xintercept = mean(t$estimate)),
+          color = "blue",
+          linewidth = 0.7
+        ) +
+        labs(
+          x = var,
+          y = "Density",
+          title = paste0("Función de Densidad Empírica - n = ", sample_size)
+        ) +
         theme_classic()
 
 
-      list(plot = plot, q95 = quantile(t$estimate, c(0.025, 0.975)))
+      list(
+        plot = plot,
+        q95 = quantile(t$estimate, c(0.025, 0.975)),
+        mean = mean(t$estimate),
+        var = var(t$estimate)
+      )
     })
 
     plots <- lapply(result, function(r) r$plot)
     quantiles <- lapply(result, function(r) r$q95)
-    names(quantiles) <- sample_sizes
+    means <- lapply(result, function(r) r$mean)
+    variances <- lapply(result, function(r) r$var)
+    names(quantiles) <- names(means) <- names(variances) <- sample_sizes
+
 
     grid.arrange(grobs = plots, padding = 5)
 
-    as.data.frame(t(as.data.frame(quantiles)))
+    list(
+      quantiles = as.data.frame(t(as.data.frame(quantiles))),
+      means = as.data.frame(t(as.data.frame(means))),
+      variances = as.data.frame(t(as.data.frame(variances)))
+    )
   }
 ```
 
-
 # Diseño de muestreo SIR
 
+En esta parte analizamos el diseño **Simple con Reposición (SIR)**.
+En primera instancia, definimos los artefactos necesarios para utilizar nuestro marco de trabajo.
+Luego, estimamos la distribución empírica del estimador del total poblacional para `nbi` y para `xo`
+y comparamos sus características con el parámetro poblacional y con el estimador teórico de la varianza del estimador poblacional.
+
 ## Definición del diseño
+
+Definimos la función `get_sir_design` que recibe una muestra y genera un objeto de diseño de muestreo
+con `svydesign` del paquete `survey` de la siguiente manera:
 
 ```{r sir_design}
 get_sir_design <- function(sample) {
   svydesign(
     ids = ~1,
     data = sample,
-    # Pesos para el estimador t_pwr
     probs = nrow(sample) / N
   )
 }
 ```
 
+En este caso, la estrategia de muestreo es diseño SIR con estimador $t_{pwr}$.
+Entonces, la probabilidad de inclusión de cada unidad es la misma para todas las unidades y está definida como
+$n \ N$, dónde $n$ es el tamaño de la muestra y $N$ es el tamaño de la población.
+
 ## Algoritmo de selección
+
+Definimos la función `get_sir_sample` que recibe el tamaño de la muestra y devuelve una muestra de tamaño `n` utilizando el método SIR.
+Específicamente, esto se implementa utilizando la función `srswr` del paquete `sampling`.
 
 ```{r sir_sampling}
 get_sir_sample <- function(sample_size) {
@@ -164,6 +216,10 @@ get_sir_sample <- function(sample_size) {
 ```
 
 ## Obtener muestras finales
+
+Utilizamos la función `get_sir_sample` para obtener muestras de tamaño 150, 600 y 1000
+y almacenarlas en la lista `sir_samples`.
+
 ```{r sir_samples}
 sample_sizes <- c(150, 600, 1000)
 sir_samples <- lapply(sample_sizes, get_sir_sample)
@@ -172,16 +228,29 @@ names(sir_samples) <- sample_sizes
 
 ## Obtener objetos de diseño finales
 
+Utilizamos la función `get_sir_design` para obtener los objetos de diseño de muestreo finales
+para cada muestra. Almacenamos estos objetos en la lista `sir_designs`.
+
 ```{r sir_designs}
 sir_designs <- lapply(sir_samples, get_sir_design)
 ```
 
 ## Análisis de NBI
 
+En esta parte analizamos los resultados obtenidos para la variable `nbi`.
+
 ### Distribución empírica del estimador para el total de NBI
 
-```{r sir_nbi_estimate_dist, echo=FALSE, results='show'}
-t_nbi_quantiles <- empirical_distribution_sir(
+Utilizamos la función `empirical_distribution_sir` para obtener y visualizar la distribución empírica del estimador.
+Esta función utiliza internamente a la función `sample_t_estimate` presentada anteriormente.
+Para esto es necesario pasar las funciones  `get_sir_sample` y `get_sir_design` definidas recién como parámetros.
+
+Como resultado, obtenemos resúmenes de la distibución empírica y los en la variable `t_nbi_dist`.
+Además visualizamos la distribución empírica para cada tamaño de muestra mediante histogramas y la función de densidad empírica.
+Destacamos el valor real del total poblacional de `nbi` como una línea vertical roja y el promedio muestral como una línea vertical azul.
+
+```{r sir_nbi_estimate_dist, results='show'}
+t_nbi_dist <- empirical_distribution_sir(
   "nbi",
   sample_sizes,
   get_sir_sample,
@@ -206,12 +275,12 @@ show_results("nbi", t_nbi_estimates_deff)
 ### Intervalos de confianza para el total de NBI
 
 ```{r sir_nbi_estimate_quantiles}
-t_nbi_quantiles$range <- t_nbi_quantiles$"97.5%" - t_nbi_quantiles$"2.5%"
-t_nbi_quantiles
+t_nbi_dist$quantiles$range <- t_nbi_dist$quantiles$"97.5%" - t_nbi_dist$quantiles$"2.5%"
+t_nbi_dist$quantiles
 ```
 
 ```{r sir_nbi_estimate_confint}
-t_nbi_confint <- do.call(rbind, lapply(t_nbi_estimates, confint_norm))
+t_nbi_confint <- as.data.frame(do.call(rbind, lapply(t_nbi_estimates, confint_norm)))
 t_nbi_confint$range <- t_nbi_confint$"97.5%" - t_nbi_confint$"2.5%"
 rownames(t_nbi_confint) <- sample_sizes
 t_nbi_confint

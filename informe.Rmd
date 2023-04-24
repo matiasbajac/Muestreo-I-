@@ -117,20 +117,20 @@ sample_t_estimate <- function(var, sample_size, get_sample, get_design) {
 
   replicate(n_simulations, {
     sample <- get_sample(sample_size)
-    design <- get_design(sample)
+    design <- get_design(sample, sample_size)
     coef(estimate_total(var, design))
   })
 }
 ```
 
 Utiliza `estimate_total` para estimar el total poblacional para la variable indicada.
-Además, definimos la función `empirical_distribution_sir` (cuyo código no está expuesto en el informe)
+Además, definimos la función `empirical_distribution` (cuyo código no está expuesto en el informe)
 que toma los mismos parámetros, utiliza `sample_t_estimate`, grafica la distribución empírica
 y retorna resúmenes de la distribución empírica del estimador, como la media, la varianza y los intervalos de confianza empíricos al 95% de confianza,
 para cada tamaño de muestra.
 
 ```{r estimate_dist_plots, include=FALSE}
-empirical_distribution_sir <-
+empirical_distribution <-
   function(var, sample_sizes, get_sample, get_design) {
     result <- lapply(sample_sizes, function(sample_size) {
       pivot <- estimate_total(var, get_design(get_sample(sample_size)))
@@ -224,7 +224,7 @@ Definimos la función `get_sir_design` que recibe una muestra y genera un objeto
 con `svydesign` del paquete `survey` de la siguiente manera:
 
 ```{r sir_design}
-get_sir_design <- function(sample) {
+get_sir_design <- function(sample, expected_sample_size = nrow(sample)) {
   svydesign(
     ids = ~1,
     data = sample,
@@ -276,7 +276,7 @@ Interesa estimar el total de hogares con 4 o más NBI.
 
 ### Distribución empírica del estimador para el total de NBI
 
-Utilizamos la función `empirical_distribution_sir` para obtener y visualizar la distribución empírica del estimador.
+Utilizamos la función `empirical_distribution` para obtener y visualizar la distribución empírica del estimador.
 Esta función utiliza internamente a la función `sample_t_estimate` presentada anteriormente.
 Para esto es necesario pasar las funciones  `get_sir_sample` y `get_sir_design` definidas recién como parámetros.
 
@@ -286,7 +286,7 @@ Mostramos el valor real del total poblacional de `nbi` como una línea vertical 
 La función de densidad empírica se muestra como un área azul y la función de densidad teórica (Normal con media en el parámetro poblacional y la varianza teórica del estimador) y como un área roja.
 
 ```{r sir_nbi_estimate_dist, results='show'}
-t_nbi_dist <- empirical_distribution_sir(
+t_nbi_dist <- empirical_distribution(
   "nbi",
   sample_sizes,
   get_sir_sample,
@@ -389,7 +389,7 @@ A seguir presentamos los gráficos de la distribución empírica del estimador d
 Destacamos la similiridad entre la distribución empírica (área azul) y la distribución teórica (área roja).
 
 ```{r sir_xo_estimate_dist, echo=FALSE, results='show'}
-t_xo_dist <- empirical_distribution_sir(
+t_xo_dist <- empirical_distribution(
   "xo",
   sample_sizes,
   get_sir_sample,

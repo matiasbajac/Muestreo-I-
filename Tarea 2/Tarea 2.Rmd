@@ -1,0 +1,43 @@
+---
+title: "Tarea 2"
+author: "Matias Bajac, Lucas Pescetto, Andres Vidal"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+
+library(haven)
+library(tidyverse)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+
+marco_cerro_largo <- read_sav("Marco_2011_con_barrio_y_Sec_po_savl.sav") %>% 
+  filter(dpto == "04" & codloc != 4900) %>% 
+  mutate(
+    codloc = case_when(
+                  codloc == 4987 ~ 4220,
+                  codloc == 4983 ~ 4220,
+                  codloc == 4825 ~ 4220,
+                  .default = codloc
+                ),
+    nomloc = case_when(
+                  nomloc == "BARRIO LA VINCHUCA" ~ "MELO",
+                  nomloc == "BARRIO LOPEZ BENITEZ" ~ "MELO",
+                  nomloc == "HIPODROMO" ~ "MELO",
+                  .default = nomloc
+                  
+                )
+  ) 
+  
+# población por localidad
+
+poblaciones <- marco_cerro_largo %>% 
+  group_by(codloc, nomloc) %>%
+  summarise(pob_loc = sum(P_TOT), v_tot = sum(V_TOT), zonas = n())
+
+```
+

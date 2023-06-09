@@ -22,22 +22,33 @@ marco_cerro_largo <- read_sav("Marco_2011_con_barrio_y_Sec_po_savl.sav") %>%
                   codloc == 4987 ~ 4220,
                   codloc == 4983 ~ 4220,
                   codloc == 4825 ~ 4220,
-                  .default = codloc
+                   TRUE ~ codloc
                 ),
     nomloc = case_when(
                   nomloc == "BARRIO LA VINCHUCA" ~ "MELO",
                   nomloc == "BARRIO LOPEZ BENITEZ" ~ "MELO",
                   nomloc == "HIPODROMO" ~ "MELO",
-                  .default = nomloc
+                   TRUE ~ nomloc
                   
                 )
-  ) 
+    )
+
   
 # población por localidad
 
 poblaciones <- marco_cerro_largo %>% 
   group_by(codloc, nomloc) %>%
   summarise(pob_loc = sum(P_TOT), v_tot = sum(V_TOT), zonas = n())
+
+
+marco_cerro_largo = marco_cerro_largo  %>%  transmute(
+                           pob = P_TOT , hogares= V_TOT, zonas= codloc, localidades = nomloc,segmento= segm)
+
+etapa1= marco_cerro_largo %>%  group_by(localidades,zonas) %>% summarise(x= sum(hogares), nz = n())
+
+estratos = etapa1 %>%  arrange(desc(x)) %>%  mutate(estrato = cut(x, breaks=c(0,200,1500,5000,25000), right = FALSE)) 
+
+estrato2 = estratos %>%  group_by(estrato) %>% summarise(Mh = n(), kh= sum(x),Nh= sum(nz))
 
 ```
 

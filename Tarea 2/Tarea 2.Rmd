@@ -70,7 +70,14 @@ usm_sample = sampling::getdata(estratos,upm_sample) # tomo la muestra
 
 muestra_simple = sampling::strata(estratos, stratanames = "estrato", size=tamanio$mh)
 
-muestra_simple_ = sampling::getdata(estratos, muestra_simple)
+muestra_simple_ = sampling::getdata(estratos, muestra_simple) %>% 
+  select(-c("Stratum", "estrato", "ID_unit", "Prob"))
+
+loc_grandes <- etapa1 %>% filter(localidades %in% c("MELO", "RIO BRANCO"))
+
+etapa2 <- bind_rows(muestra_simple_, loc_grandes)
+
+sizes2 <- etapa2 %>%  mutate(mh=round(100*x/sum(x)), nh=100*Nh)
 
 ```
 

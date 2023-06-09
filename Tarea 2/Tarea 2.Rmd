@@ -37,7 +37,9 @@ marco_cerro_largo <- read_sav("Marco_2011_con_barrio_y_Sec_po_savl.sav") %>%
                 )
     )
 
-  
+marco_cerro_largo = marco_cerro_largo  %>%  transmute(
+                          pob = P_TOT , hogares= V_TOT, zonas= codloc, localidades = nomloc,segmento= segm)
+
 # población por localidad
 
 poblaciones <- marco_cerro_largo %>% 
@@ -45,15 +47,15 @@ poblaciones <- marco_cerro_largo %>%
   summarise(pob_loc = sum(pob), v_tot = sum(hogares), zonas = n())
 
 
-etapa1= marco_cerro_largo %>%  group_by(localidades,zonas) %>% summarise(x= sum(hogares), nz = n(),sd_x=sd(hogares)) 
+etapa1 = marco_cerro_largo %>%  group_by(localidades,zonas) %>% summarise(x= sum(hogares), nz = n(), sd_x=sd(hogares)) 
 
-estratos = etapa1 %>%  arrange(desc(x)) %>%  mutate(estrato = cut(x, breaks=c(0,200,1500,5000,Inf), right = FALSE))  %>% filter(x<5000)
+estratos = etapa1 %>%  arrange(desc(x)) %>%  mutate(estrato = cut(x, breaks=c(0,100,5000,Inf), right = FALSE))  %>% filter(x<5000)
 
 estratos2 = estratos %>%  group_by(estrato) %>% summarise(Mh = n(), kh= sum(x), Nh= sum(nz))
 
 
 
-tamanio = estratos2 %>%  mutate(mh=round(5*Mh/sum(Mh)), nh=5*Nh) ## asignacion proporcional al tamanio de cada estrato 
+tamanio = estratos2 %>%  mutate(mh=round(6*Mh/sum(Mh)), nh=6*Nh) ## asignacion proporcional al tamanio de cada estrato 
 
 estratos = estratos %>%  arrange(estrato)
 set.seed(1234)
@@ -66,9 +68,9 @@ description = TRUE)
 
 usm_sample = sampling::getdata(estratos,upm_sample) # tomo la muestra 
 
+muestra_simple = sampling::strata(estratos, stratanames = "estrato", size=tamanio$mh)
 
-
-
+muestra_simple_ = sampling::getdata(estratos, muestra_simple)
 
 ```
 

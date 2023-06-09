@@ -3,6 +3,7 @@ title: "Tarea 2"
 author: "Matias Bajac, Lucas Pescetto, Andres Vidal"
 date: "`r Sys.Date()`"
 output:
+  pdf_document: default
   html_document:
     df_print: paged
 ---
@@ -11,6 +12,7 @@ output:
 
 library(haven)
 library(tidyverse)
+library(survey)
 
 knitr::opts_chunk$set(echo = TRUE)
 ```
@@ -39,18 +41,34 @@ marco_cerro_largo <- read_sav("Marco_2011_con_barrio_y_Sec_po_savl.sav") %>%
 # población por localidad
 
 poblaciones <- marco_cerro_largo %>% 
-  group_by(codloc, nomloc) %>%
-  summarise(pob_loc = sum(P_TOT), v_tot = sum(V_TOT), zonas = n())
+  group_by(localidades) %>%
+  summarise(pob_loc = sum(pob), v_tot = sum(hogares), zonas = n())
 
 
-marco_cerro_largo = marco_cerro_largo  %>%  transmute(
-                           pob = P_TOT , hogares= V_TOT, zonas= codloc, localidades = nomloc,segmento= segm)
+etapa1= marco_cerro_largo %>%  group_by(localidades,zonas) %>% summarise(x= sum(hogares), nz = n(),sd_x=sd(hogares)) 
 
-etapa1= marco_cerro_largo %>%  group_by(localidades,zonas) %>% summarise(x= sum(hogares), nz = n())
+estratos = etapa1 %>%  arrange(desc(x)) %>%  mutate(estrato = cut(x, breaks=c(0,200,1500,5000,Inf), right = FALSE))  %>% filter(x<5000)
 
-estratos = etapa1 %>%  arrange(desc(x)) %>%  mutate(estrato = cut(x, breaks=c(0,200,1500,5000,25000), right = FALSE)) 
+estratos2 = estratos %>%  group_by(estrato) %>% summarise(Mh = n(), kh= sum(x), Nh= sum(nz))
 
-estrato2 = estratos %>%  group_by(estrato) %>% summarise(Mh = n(), kh= sum(x),Nh= sum(nz))
+
+
+tamanio = estratos2 %>%  mutate(mh=round(5*Mh/sum(Mh)), nh=5*Nh) ## asignacion proporcional al tamanio de cada estrato 
+
+estratos = estratos %>%  arrange(estrato)
+set.seed(1234)
+upm_sample=sampling::strata(estratos,  
+                        stratanames='estrato', 
+size=tamanio$mh, ## numero de localidades sorteadas x estrato 
+method = 'systematic',
+pik= estratos$x, # le paso la probabiliad de inclusion proporcional al tamanio de hogares 
+description = TRUE)
+
+usm_sample = sampling::getdata(estratos,upm_sample) # tomo la muestra 
+
+
+
+
 
 ```
 

@@ -1,14 +1,14 @@
 ---
-title: "Tarea 2"
+  title: "Tarea 2"
 author: "Matias Bajac, Lucas Pescetto, Andres Vidal"
 date: "`r Sys.Date()`"
 output:
   pdf_document: default
-  html_document:
-    df_print: paged
+html_document:
+  df_print: paged
 ---
-
-```{r setup, include=FALSE}
+  
+  ```{r setup, include=FALSE}
 
 library(haven)
 library(tidyverse)
@@ -23,61 +23,71 @@ marco_cerro_largo <- read_sav("Marco_2011_con_barrio_y_Sec_po_savl.sav") %>%
   filter(dpto == "04" & codloc != 4900) %>% 
   mutate(
     codloc = case_when(
-                  codloc == 4987 ~ 4220,
-                  codloc == 4983 ~ 4220,
-                  codloc == 4825 ~ 4220,
-                   TRUE ~ codloc
-                ),
+      codloc == 4987 ~ 4220,
+      codloc == 4983 ~ 4220,
+      codloc == 4825 ~ 4220,
+      TRUE ~ codloc
+    ),
     nomloc = case_when(
-                  nomloc == "BARRIO LA VINCHUCA" ~ "MELO",
-                  nomloc == "BARRIO LOPEZ BENITEZ" ~ "MELO",
-                  nomloc == "HIPODROMO" ~ "MELO",
-                   TRUE ~ nomloc
-                  
-                )
+      nomloc == "BARRIO LA VINCHUCA" ~ "MELO",
+      nomloc == "BARRIO LOPEZ BENITEZ" ~ "MELO",
+      nomloc == "HIPODROMO" ~ "MELO",
+      TRUE ~ nomloc
+      
     )
+  ) %>% 
+  transmute(pob = P_TOT,
+            viviendas = V_TOT,
+            localidades = nomloc,
+            segmento = segm)
 
-marco_cerro_largo = marco_cerro_largo  %>%  transmute(
-                          pob = P_TOT , hogares= V_TOT, zonas= codloc, localidades = nomloc,segmento= segm)
+localidades <- marco_cerro_largo %>% 
+  group_by(localidades) %>% 
+  summarise(n_viv = sum(viviendas), n_z = n()) %>%  
+  mutate(estrato = cut(n_viv, breaks=c(0, 100, 5000, Inf), right = FALSE)) %>%
+  filter(n_viv < 5000) %>%
+  arrange(estrato)
 
-# población por localidad
+estratos <- localidades %>% 
+  group_by(estrato) %>%
+  summarise(n_loc = n(), N_z = sum(n_z), N_viv = sum(n_viv)) %>% 
+  mutate(mh = round(6*n_loc/sum(n_loc)))
 
-poblaciones <- marco_cerro_largo %>% 
-  group_by(localidades) %>%
-  summarise(pob_loc = sum(pob), v_tot = sum(hogares), zonas = n())
+loc_grandes <- marco_cerro_largo %>% 
+  group_by(localidades) %>% 
+  summarise(n_viv = sum(viviendas), n_z = n()) %>% 
+  filter(localidades %in% c("MELO", "RIO BRANCO"))
 
-
-etapa1 = marco_cerro_largo %>%  group_by(localidades,zonas) %>% summarise(x= sum(hogares), nz = n(), sd_x=sd(hogares)) 
-
-estratos = etapa1 %>%  arrange(desc(x)) %>%  mutate(estrato = cut(x, breaks=c(0,100,5000,Inf), right = FALSE))  %>% filter(x<5000)
-
-estratos2 = estratos %>%  group_by(estrato) %>% summarise(Mh = n(), kh= sum(x), Nh= sum(nz))
-
-
-
-tamanio = estratos2 %>%  mutate(mh=round(6*Mh/sum(Mh)), nh=6*Nh) ## asignacion proporcional al tamanio de cada estrato 
-
-estratos = estratos %>%  arrange(estrato)
 set.seed(1234)
-upm_sample=sampling::strata(estratos,  
-                        stratanames='estrato', 
-size=tamanio$mh, ## numero de localidades sorteadas x estrato 
-method = 'systematic',
-pik= estratos$x, # le paso la probabiliad de inclusion proporcional al tamanio de hogares 
-description = TRUE)
-
-usm_sample = sampling::getdata(estratos,upm_sample) # tomo la muestra 
-
-muestra_simple = sampling::strata(estratos, stratanames = "estrato", size=tamanio$mh)
-
-muestra_simple_ = sampling::getdata(estratos, muestra_simple) %>% 
-  select(-c("Stratum", "estrato", "ID_unit", "Prob"))
-
-loc_grandes <- etapa1 %>% filter(localidades %in% c("MELO", "RIO BRANCO"))
-
-etapa2 <- bind_rows(muestra_simple_, loc_grandes)
-
-sizes2 <- etapa2 %>%  mutate(mh=round(100*x/sum(x)), nh=100*Nh)
 
 ```
 
+```{r}
+# usando diseño pips
+
+diseño_pips <- strata(localidades,
+                      stratanames = 'estrato', 
+                      size = estratos$mh, ## numero de localidades sorteadas x estrato 
+                      method = 'systematic',
+                      pik = localidades$n_viv, # le paso la probabiliad de inclusion proporcional al tamanio de viviendas 
+                                description = TRUE)
+
+muestra_pips <- sampling::getdata(localidades, diseño_pips) %>% 
+  select(-c("Stratum", "estrato", "ID_unit", "Prob")) # tomo la muestra 
+
+etapa2_pips <- bind_rows(muestra_pips, loc_grandes) %>% 
+  mutate(mh=ceiling(95*nz/sum(nz)))
+```
+
+```{r}
+# usando diseño simple
+
+diseno_simple <-  sampling::strata(localidades, stratanames = "estrato", size = estratos$mh)
+
+muestra_simple <- sampling::getdata(localidades, diseno_simple) %>% 
+  select(-c("Stratum", "estrato", "ID_unit", "Prob"))
+
+etapa2_simple <- bind_rows(muestra_simple_, loc_grandes) %>%
+  mutate(mh=ceiling(95*nz/sum(nz)))
+
+```

@@ -8,11 +8,11 @@ html_document:
   df_print: paged
 ---
   
-  ```{r setup, include=FALSE}
+```{r setup, include=FALSE}
 
 library(haven)
 library(tidyverse)
-library(survey)
+library(sampling)
 
 knitr::opts_chunk$set(echo = TRUE)
 ```
@@ -20,7 +20,9 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r}
 
 marco_cerro_largo <- read_sav("Marco_2011_con_barrio_y_Sec_po_savl.sav") %>% 
+  # obtenemos el departamento de Cerro Largo y descartamos las zonas censales rurales
   filter(dpto == "04" & codloc != 4900) %>% 
+  # modificamos las variables indicadoras de localidad para que el conurbano de Melo figure como parte de la capital
   mutate(
     codloc = case_when(
       codloc == 4987 ~ 4220,
@@ -41,15 +43,19 @@ marco_cerro_largo <- read_sav("Marco_2011_con_barrio_y_Sec_po_savl.sav") %>%
             localidades = nomloc,
             segmento = segm)
 
-localidades <- marco_cerro_largo %>% 
+marco_etapa_1 <- marco_cerro_largo %>% 
   group_by(localidades) %>% 
+  # calculamos la cantidad  de viviendas y zonas censales por localidad
   summarise(n_viv = sum(viviendas), n_z = n()) %>%  
-  mutate(estrato = cut(n_viv, breaks=c(0, 100, 5000, Inf), right = FALSE)) %>%
+  # quitamos a Melo y Rio Branco del marco de la primera etapa, ya que pasarán directamente a la segunda
   filter(n_viv < 5000) %>%
+  # creamos los estratos en función de la cantidad de viviendas
+  mutate(estrato = cut(n_viv, breaks = c(0, 100, 5000, Inf), right = FALSE)) %>%
   arrange(estrato)
 
-estratos <- localidades %>% 
+estratos <- marco_etapa_1 %>% 
   group_by(estrato) %>%
+  # calculamos la cantidad de localidades por estrato y los tamaños de muestra para cada uno. (asignación proporcional)
   summarise(n_loc = n(), N_z = sum(n_z), N_viv = sum(n_viv)) %>% 
   mutate(mh = round(6*n_loc/sum(n_loc)))
 
@@ -58,36 +64,56 @@ loc_grandes <- marco_cerro_largo %>%
   summarise(n_viv = sum(viviendas), n_z = n()) %>% 
   filter(localidades %in% c("MELO", "RIO BRANCO"))
 
-set.seed(1234)
+
 
 ```
 
 ```{r}
-# usando diseño pips
+# etapa 1
 
-diseño_pips <- strata(localidades,
-                      stratanames = 'estrato', 
-                      size = estratos$mh, ## numero de localidades sorteadas x estrato 
-                      method = 'systematic',
-                      pik = localidades$n_viv, # le paso la probabiliad de inclusion proporcional al tamanio de viviendas 
-                                description = TRUE)
+set.seed(1)
 
-muestra_pips <- sampling::getdata(localidades, diseño_pips) %>% 
-  select(-c("Stratum", "estrato", "ID_unit", "Prob")) # tomo la muestra 
+marco_etapa_1 <- marco_cerro_largo %>% 
+  group_by(localidades) %>% 
+  # calculamos la cantidad  de viviendas y zonas censales por localidad
+  summarise(n_viv = sum(viviendas), n_z = n()) %>%  
+  # quitamos a Melo y Rio Branco del marco de la primera etapa, ya que pasarán directamente a la segunda
+  filter(n_viv < 5000) %>%
+  # creamos los estratos en función de la cantidad de viviendas
+  mutate(estrato = cut(n_viv, breaks = c(0, 100, 5000, Inf), right = FALSE)) %>%
+  arrange(estrato)
 
-etapa2_pips <- bind_rows(muestra_pips, loc_grandes) %>% 
-  mutate(mh=ceiling(95*nz/sum(nz)))
-```
+n_1 <- 5 # tamaño de muestra total de la primera etapa
 
-```{r}
-# usando diseño simple
+estratos <- marco_etapa_1 %>% 
+  group_by(estrato) %>%
+  # calculamos la cantidad de localidades por estrato y los tamaños de muestra para cada uno (asignación proporcional)
+  summarise(n_loc = n(), N_z = sum(n_z), N_viv = sum(n_viv)) %>% 
+  mutate(n = round(n_1*n_loc/sum(n_loc)))
 
-diseno_simple <-  sampling::strata(localidades, stratanames = "estrato", size = estratos$mh)
+diseno_1 <-  strata(marco_etapa_1, stratanames = "estrato", size = estratos$n)
 
-muestra_simple <- sampling::getdata(localidades, diseno_simple) %>% 
+muestra_1 <- getdata(marco_etapa_1, diseno_simple) %>% 
   select(-c("Stratum", "estrato", "ID_unit", "Prob"))
 
-etapa2_simple <- bind_rows(muestra_simple_, loc_grandes) %>%
-  mutate(mh=ceiling(95*nz/sum(nz)))
+```
+
+```{r}
+# etapa 2
+
+loc_grandes <- marco_cerro_largo %>% 
+  filter(localidades %in% c("MELO", "RIO BRANCO")) %>% 
+  group_by(localidades) %>% 
+  summarise(n_viv = sum(viviendas), n_z = n())
+  
+
+n_3 <- 5 # cantidad de padrones por zona censal
+
+marco_etapa_2 <- bind_rows(muestra_1, loc_grandes) %>%
+  # calculamos el tamaño de muestra de zonas censales por localidad, proporcional a su cantidad de viviendas
+  mutate(n = round((1000/n_3)*n_viv/sum(n_viv)),
+         n_alt = 5 + round((1000/n_3 - 5*7)*n_viv/sum(n_viv)))
+
+
 
 ```

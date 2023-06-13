@@ -93,7 +93,7 @@ estratos <- marco_etapa_1 %>%
 
 diseno_1 <-  strata(marco_etapa_1, stratanames = "estrato", size = estratos$n)
 
-muestra_1 <- getdata(marco_etapa_1, diseno_simple) %>% 
+muestra_1 <- getdata(marco_etapa_1, diseno_1) %>% 
   select(-c("Stratum", "estrato", "ID_unit", "Prob"))
 
 ```

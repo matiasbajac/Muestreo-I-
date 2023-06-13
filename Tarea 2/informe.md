@@ -1,3 +1,8 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
 **Muestreo y Planificación de Encuestas 1 - 2023**
 
 Matías Bajac, Lucas Pescetto, Andrés Vidal.
@@ -52,7 +57,7 @@ En la tabla a seguir se presentan los aspectos clave de la encuesta.
 
 ## Marco de Muestreo
 
-A partir del marco censal se construyó un marco de muestreo de zonas censales. La información adicional considerada compreende la localidad, la cantidad de habitantes y la cantidad de viviendas de cada zona censal.
+A partir del marco censal se construyó un marco de muestreo de zonas censales. La información adicional considerada comprende la localidad, la cantidad de habitantes y la cantidad de viviendas de cada zona censal.
 
 ## Diseño de Muestreo
 
@@ -76,15 +81,15 @@ Finalmente, se obtendrá una muestra de padrones $S_{P_{i,j}}$ para cada zona ce
 
 $$S_{P_{i,j}} = \{P_{i,j,1}, \dots, n(S_{P_{i,j}}) \}$$
 
-Recordando que la ejecución del muestreo, en esta estadio, incluye únicamente hasta la obtención de cada muestra $S_{Z_i}$ de zonas censales por localidad. Las muestras de padrones por zona censal $S_{P_{i,j}}$ podrán ser obtenidas cuando se cuente con la información catastral actualizada sobre los padrones de Cerro Largo.
+Recordando que la ejecución del muestreo, en esta etapa, incluye únicamente hasta la obtención de cada muestra $S_{Z_i}$ de zonas censales por localidad. Las muestras de padrones por zona censal $S_{P_{i,j}}$ podrán ser obtenidas cuando se cuente con la información catastral actualizada sobre los padrones de Cerro Largo.
 
 ### Primera Etapa: Muestreo de Localidades
 
 Para obtener la muestra $S_L$ de localidades se utilizó el marco de muestreo de zonas censales para construir un marco de localidades. Se agruparon las zonas censales según su localidad, y se sumaron los datos de número de habitantes y número de viviendas. Por lo tanto, se cuenta con una lista de localidades e información adicional referente al número de habitantes y el número de viviendas de cada localidad.
 
-Se observó que las únicas localidades grandes del departamento son Melo (capital departamental) y Rio Branco. Además, Melo no posee conurbano, por lo que el restante de las localidades deben incluirse en la muestra individualmente.
+Se observó que las únicas localidades grandes del departamento son Melo (capital departamental) y Rio Branco. Habiendo asignado las zonas correspondientes al conurbano de Melo (Barrio La Vinchuca, Barrio López Benitez e Hipódromo) como parte de dicha ciudad, el restante de las localidades deben incluirse en la muestra individualmente. También se descartaron del marco las zonas correspondientes al área rural de Cerro Largo, ya que no pertenecen a la población objetivo.
 
-Las restricciones presupuestales indican que, además de la capital departamental, podrán visitarse 3 localidades grandes y 4 localidades chicas. Debido a que Rio Branco es la única localidad grande exceptuando a Melo, con el fin de optimizar el uso del presupuesto se visitarán 5 localidades chicas. El intercambio de dos localidades grandes por una chica se debe a que éstas últimas suponen más costos al realizar la encuesta. Además, se concluyó que Rio Branco deberá ser visitada obligatoriamente. Por lo tanto, el tamaño de la muestra $S_L$ de localidades será
+Las restricciones presupuestales indican que, además de la capital departamental, podrán visitarse 3 localidades grandes y 4 localidades chicas. Debido a que Rio Branco es la única localidad grande exceptuando a Melo, con el fin de optimizar el uso del presupuesto se acordó con la OPP que se visitarán 5 localidades chicas. El intercambio de dos localidades grandes por una chica se debe a que éstas últimas suponen más costos al realizar la encuesta. Además, se concluyó que Rio Branco deberá ser visitada obligatoriamente. Por lo tanto, el tamaño de la muestra $S_L$ de localidades será
 
 $$n(S_L) = 7$$
 
@@ -96,7 +101,7 @@ Considerando este contexto, se realizará muestreo estratificado con el fin de c
 
 En los primeros estratos, $L^1$ y $L^2$, se seleccionarán sus elementos con probabilidad 1.
 
-En el tercer estrato $L^3$ se observó gran variabilidad respecto al número de viviendas. Las localidades de "Lago Merin" y "Fraile Muerto" cuentan con 1384 y 1296 viviendas, respectivamente, mientras que otras 6 localidades tienen entre 150 y 886 viviendas y las otras 18 cuentan con entre 2 y 100 viviendas.
+En el tercer estrato $L^3$ se observó gran variabilidad respecto al número de viviendas. Las localidades de "Lago Merin" y "Fraile Muerto" cuentan con 1384 y 1296 viviendas, respectivamente, mientras que otras 5 localidades tienen entre 150 y 886 viviendas y las otras 18 cuentan con entre 2 y 100 viviendas.
 
 Estas características de $L^3$ hacen que en el caso de usar un diseño simple sin reposición haya gran probabilidad de sortear localidades con muy pocas viviendas y que en el caso de utilizar un diseño proporcional al número de viviendas la muestra se vea demasiado sesgada a las localidades con más viviendas.
 
@@ -115,13 +120,15 @@ En cada estrato se realizará muestreo simple sin reposición, con tamaños de m
 
 Para obtener las muestra $S_{Z_i}$ de zonas censales para cada localidad $L_i$ perteneciente a la muestra obtenida en la etapa anterior, se utiliza el marco de muestro de zonas censales construido inicialmente.
 
-Dentro de cada localidad, se utilizará un diseño de muestreo simple con reposición, cuyo tamaño es proporcional a la cantidad de viviendas en la localidad:
+Dentro de cada localidad, se utilizará un diseño de muestreo simple sin reposición, cuyo tamaño es proporcional a la cantidad de viviendas en la localidad:
 
 $$n(S_{Z_i}) = \frac{\rho_i}{r_i}$$
 
 dónde $r_i$ es el número de padrones que se relevarán por zona censal en la localidad $L_i$ y $\rho_i$ es la cantidad de padrones que se relevarán en la localidad $L_i$:
 
 $$\rho_i= 1000 \frac{\text{viviendas}(L_i)}{\sum_{k=1}^{n(S_L)}\text{viviendas}(L_k)}$$
+
+El número de padrones a relevar por localidad se calcula con respecto a la cantidad de viviendas de la población y no de la muestra obtenida en la etapa anterior, con el fin de representar de manera equitativa a todas las localidades, especialmente a las más chicas, que fueron levemente castigadas en la primera etapa.
 
 ### Tercera Etapa: Muestreo de Padrones
 

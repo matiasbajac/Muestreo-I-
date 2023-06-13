@@ -112,7 +112,10 @@ n_3 <- 5 # cantidad de padrones por zona censal
 marco_etapa_2 <- bind_rows(muestra_1, loc_grandes) %>%
   # calculamos el tamaño de muestra de zonas censales por localidad, proporcional a su cantidad de viviendas
   mutate(n = round((1000/n_3)*n_viv/sum(n_viv)),
-         n_alt = 5 + round((1000/n_3 - 5*7)*n_viv/sum(n_viv)))
+         n_alt = 5 + round((1000/n_3 - 5*7)*n_viv/sum(n_viv)),
+         n_pad = round(1000*n_viv/sum(n_viv)),
+         n_pad_alt = 5 + round((1000 - 5*7)*n_viv/sum(n_viv)),
+         pad_x_zona = n_pad_alt/n_z)
 
 
 

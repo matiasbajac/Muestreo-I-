@@ -129,7 +129,7 @@ Para obtener las muestras $S_{P_{i,j}}$ de padrones para la zona censal $Z_j$ y 
 
 Como el parámetro a estimar es una proporción y el diseño es simple sin reemplazo, el criterio para escoger el tamaño de muestra es:
 
-$$r_i = \frac{{N_i}^2 (z_{1- \frac{\alpha}{2}})^2 S_y^2}{N_i\varepsilon^2 + (z_{1- \frac{\alpha}{2}})^2 S_y^2}$$
+$$r_i = \frac{N_i (z_{1- \frac{\alpha}{2}})^2 S_y^2}{N_i\varepsilon^2 + (z_{1- \frac{\alpha}{2}})^2 S_y^2}$$
 
 dónde $N_i$ es la cantidad de padrones en cada zona censal de la localidad, $z_{1- \frac{\alpha}{2}}$ es el percentil $1- \frac{\alpha}{2}$ de una Normal estándar, $1-\alpha$ es el nivel de confianza, $\varepsilon$ es el error de muestreo y $S_y^2$ es la varianza de la variable de interés. Como la variable de interés es una Bernoulli se sabe que
 
@@ -141,7 +141,7 @@ $$N_i = \left\lceil\frac{\text{viviendas}(L_i)}{\text{zonas\_censales}(L_i)}\rig
 
 El valor de $r$ queda entonces determinado por el error de muestreo objetivo $\varepsilon$ y el nivel de confianza $1 - \alpha$:
 
-$$r_i(\varepsilon, \alpha) = \frac{{N_i}^2 \frac{1}{4}(z_{1- \frac{\alpha}{2}})^2}{N_i\varepsilon^2 + \frac{1}{4}(z_{1- \frac{\alpha}{2}})^2}$$
+$$r_i(\varepsilon, \alpha) = \frac{N_i \frac{1}{4}(z_{1- \frac{\alpha}{2}})^2}{N_i\varepsilon^2 + \frac{1}{4}(z_{1- \frac{\alpha}{2}})^2}$$
 
 ### Resúmen del Diseño de Muestreo
 
@@ -170,7 +170,7 @@ $$n(S_{Z_i}) = \frac{\rho_i}{r_i}$$
 
 $$\rho_i= 1000 \frac{\text{viviendas}(L_i)}{\sum_{k=1}^{n(S_L)}\text{viviendas}(L_k)}$$
 
-$$n(S_{P_{i,j}}) = r_i = \frac{{N_i}^2 \frac{1}{4}(z_{1- \frac{\alpha}{2}})^2}{N_i\varepsilon^2 + \frac{1}{4}(z_{1- \frac{\alpha}{2}})^2}$$
+$$n(S_{P_{i,j}}) = r_i = \frac{N_i \frac{1}{4}(z_{1- \frac{\alpha}{2}})^2}{N_i\varepsilon^2 + \frac{1}{4}(z_{1- \frac{\alpha}{2}})^2}$$
 
 $$N_i = \left\lceil\frac{\text{viviendas}(L_i)}{\text{zonas\_censales}(L_i)}\right\rceil$$
 

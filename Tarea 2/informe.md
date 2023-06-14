@@ -115,7 +115,7 @@ En cada estrato se realizará muestreo simple sin reposición, con tamaños de m
 
 Para obtener las muestra $S_{Z_i}$ de zonas censales para cada localidad $L_i$ perteneciente a la muestra obtenida en la etapa anterior, se utiliza el marco de muestro de zonas censales construido inicialmente.
 
-Dentro de cada localidad, se utilizará un diseño de muestreo simple con reposición, cuyo tamaño es proporcional a la cantidad de viviendas en la localidad:
+Dentro de cada localidad, se utilizará un diseño de muestreo simple sin reposición, cuyo tamaño es proporcional a la cantidad de viviendas en la localidad:
 
 $$n(S_{Z_i}) = \frac{\rho_i}{r_i}$$
 

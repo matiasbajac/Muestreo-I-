@@ -1,5 +1,5 @@
 ---
-  title: "Tarea 2"
+title: "Tarea 2"
 author: "Matias Bajac, Lucas Pescetto, Andres Vidal"
 date: "`r Sys.Date()`"
 output:
@@ -48,79 +48,72 @@ marco_etapa_1 <- marco_cerro_largo %>%
   # calculamos la cantidad  de viviendas y zonas censales por localidad
   summarise(n_viv = sum(viviendas), n_z = n()) %>%  
   # quitamos a Melo y Rio Branco del marco de la primera etapa, ya que pasarán directamente a la segunda
-  filter(n_viv < 5000) %>%
   # creamos los estratos en función de la cantidad de viviendas
-  mutate(estrato = cut(n_viv, breaks = c(0, 100, 5000, Inf), right = FALSE)) %>%
+  mutate(estrato = cut(n_viv, breaks = c(0, 150, 5000, Inf), right = T)) %>%
   arrange(estrato)
-
-estratos <- marco_etapa_1 %>% 
-  group_by(estrato) %>%
-  # calculamos la cantidad de localidades por estrato y los tamaños de muestra para cada uno. (asignación proporcional)
-  summarise(n_loc = n(), N_z = sum(n_z), N_viv = sum(n_viv)) %>% 
-  mutate(mh = round(6*n_loc/sum(n_loc)))
-
-loc_grandes <- marco_cerro_largo %>% 
-  group_by(localidades) %>% 
-  summarise(n_viv = sum(viviendas), n_z = n()) %>% 
-  filter(localidades %in% c("MELO", "RIO BRANCO"))
-
-
 
 ```
 
 ```{r}
 # etapa 1
 
-set.seed(1)
+set.seed(12)
 
 marco_etapa_1 <- marco_cerro_largo %>% 
   group_by(localidades) %>% 
   # calculamos la cantidad  de viviendas y zonas censales por localidad
   summarise(n_viv = sum(viviendas), n_z = n()) %>%  
   # quitamos a Melo y Rio Branco del marco de la primera etapa, ya que pasarán directamente a la segunda
-  filter(n_viv < 5000) %>%
   # creamos los estratos en función de la cantidad de viviendas
   mutate(estrato = cut(n_viv, breaks = c(0, 150, 5000, Inf), right = FALSE)) %>%
   arrange(estrato)
 
-n_1 <- 5 # tamaño de muestra total de la primera etapa
-
-
+n_1 <- 7 # tamaño de muestra total de la primera etapa
 
 estratos <- marco_etapa_1 %>% 
   group_by(estrato) %>%  # calculamos la cantidad de localidades por estrato
   summarise(n_loc = n(), N_z = sum(n_z), N_viv = sum(n_viv)) %>% 
-  ungroup() %>% 
   mutate(mh = case_when(row_number() == 1 ~ 2,
                         row_number() == 2 ~ 3,
+                        row_number() == 3 ~ 2,
                         TRUE ~ 1))
 
+disenio_1 <-  strata(marco_etapa_1, stratanames = "estrato", size = estratos$mh)
 
+muestra_1 <- getdata(marco_etapa_1, disenio_1)
 
-diseno_1 <-  strata(marco_etapa_1, stratanames = "estrato", size = estratos$mh)
+marco_etapa_1 = left_join(marco_etapa_1,select(muestra_1,Prob,estrato,localidades)) %>% filter(is.na(Prob)==FALSE)
 
-muestra_1 <- getdata(marco_etapa_1, diseno_1) %>% 
-  select(-c("Stratum", "estrato", "ID_unit", "Prob"))
 
 ```
 
 ```{r}
 # etapa 2
 
-
-
-loc_grandes <- marco_cerro_largo %>% 
-  filter(localidades %in% c("MELO", "RIO BRANCO")) %>% 
-  group_by(localidades) %>% 
-  summarise(n_viv = sum(viviendas), n_z = n())
+#loc_grandes <- marco_cerro_largo %>% 
+ # filter(localidades %in% c("MELO", "RIO BRANCO")) %>% 
+ # group_by(localidades) %>% 
+ # summarise(n_viv = sum(viviendas), n_z = n())
   
+# niveles de error y confianza dentro de cada zona
+error <- 0.03
+alpha <- 0.05
+# bind_rows(muestra_1, loc_grandes) %>%
 
-n_3 <- 5 # cantidad de padrones por zona censal
-
-marco_etapa_2 <- bind_rows(muestra_1, loc_grandes) %>%
+   
+   marco_etapa_2 <- marco_etapa_1 %>% 
   # calculamos el tamaño de muestra de zonas censales por localidad, proporcional a su cantidad de viviendas
-  mutate(n = round((1000*n_viv/sum(n_viv))), ns=round((n/5)))
+  mutate(
+    n_pad = round(1000*n_viv/sum(marco_etapa_1$n_viv)),
+    N_i = round(n_viv/n_z),
+    r = round((((n_viv/n_z))/4)*qnorm(1-alpha/2)**2)/((n_viv/n_z)*error**2 + (qnorm(1-alpha/2)**2)/4),
+    n_zs = round(n_pad/r))
 
+ 
 
 
 ```
+
+
+
+

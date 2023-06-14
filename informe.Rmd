@@ -1,0 +1,817 @@
+---
+title: "Trabajo 1 - Muestreo y Planificación de Encuestas I"
+author: "Matias Bajac - Lucas Pescetto - Andres Vidal"
+date: '2023-04-10'
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(fig.show = "all")
+rm(list = ls())
+library(here)
+library(tidyverse)
+library(haven)
+library(survey)
+library(sampling)
+library(ggplot2)
+library(gridExtra)
+set.seed(0)
+```
+
+# Introducción
+
+Partimos de la base de datos del censo de hogares de 2011 en Rio Branco
+para estudiar los diseños **Simple sin reposición (SI)**, **Simple con reposición (SIR)** y **Bernoulli (BER)**.
+Nos interesa estimar el total poblacional de dos variables calculadas a partir de la base de datos en cuestión:
+
+- `nbi`: vale 0 si el hogar tiene 3 o menos necesidades básicas insatisfechas (NBI) y 1 si tiene 4 o más.
+- `xo`: vale 0 si el hogar tiene algún dispositivo, y 1 en caso de no contar con ninguno.
+
+Esto es, estaremos estimando la cantidad de hogares con 4 o más NBI y la cantidad de hogares sin computadoras XO.
+Además del cálculo de las variables `nbi` y `xo` a partir de la base de datos, esto requirió remover observaciones duplicadas,
+puesto que la base está a nivel de personas e interesa calcular los totales a nivel de hogares.
+
+```{r data_processing, include=FALSE}
+is_nbi_missing <- function(x) x %in% c(8, 9)
+is_nbi_var <- function() starts_with("NBI_")
+mutate_nbi <- function(x) zap_labels(x) %>% if_else(is_nbi_missing(.), 0, .)
+select_nbi <- function(x) select(x, is_nbi_var(), -NBI_CANTIDAD)
+has_xo <- function(x) if_else(x$HOGCE09 == 0, 1, 0)
+has_nbi <- function(x) if_else(x$NBI_TOTAL >= 4, 1, 0)
+
+load("datos.RData")
+data <- rio_branco %>%
+  mutate(across(is_nbi_var(), ~ mutate_nbi(.))) %>%
+  mutate(NBI_TOTAL = rowSums(select_nbi(.)), XO = has_xo(.)) %>%
+  mutate(NBI = has_nbi(.), ID = paste(ID_VIVIENDA, HOGID)) %>%
+  filter(!duplicated(ID)) %>%
+  select(nbi = NBI, xo = XO)
+t_nbi <- sum(data$nbi)
+t_xo <- sum(data$xo)
+N <- nrow(data)
+```
+
+
+# Distribución empírica del estimador
+
+En esta parte presentamos el marco de trabajo del análisis.
+Definimos funciones auxiliares para automatizar el análisis y estandarizar y simplificar la presentación de los resultados.
+El objetivo es abstraer los procedimientos a ser realizaos de los tamaños de muestra y de los diseños de muestreo.
+Para esto, utilizamos el paquete `survey`.
+
+## Funciones Auxiliares
+
+Definimos funciones auxiliares para facilitar el resto del análisis:
+
+- `estimate_total` recibe un nombre de variable y un diseño de muestreo para estimar un total poblacional. Envuelve la función `svytotal` del paquete `survey` para facilitar su uso.
+- `estimate_totals` recibe un nombre de variable y una lista de diseños de muestreo y estima el total poblacional para cada diseño. Se utiliza especialmente para automatizar la aplicación sobre varios tamaños de muestra.
+- `show_results` recibe un nombre de variable y una lista de resultados para mostrarlos de forma estándar.
+- `confint_norm` recibe un estimador (resultado de `svytotal`) y calcula el intervalo de confianza al 95% asumiendo distribución normal.
+
+```{r auxiliar}
+estimate_total <- function(var, design) {
+  svytotal(as.formula(paste0("~", var)), design, deff = TRUE)
+}
+estimate_totals <- function(var, design_list) {
+  lapply(design_list, function(design) estimate_total(var, design))
+}
+show_results <- function(var, named_result_list) {
+  t(as.data.frame(t(named_result_list), row.names = var))
+}
+confint_norm <- function(t_estimate) {
+  t <- coef(t_estimate)
+  se <- SE(t_estimate)
+  ci <- cbind(
+    t - qnorm(0.975) * se,
+    t + qnorm(0.975) * se
+  )
+  colnames(ci) <- c("2.5%", "97.5%")
+  ci
+}
+```
+
+## Muestreo del estimador
+
+Obtenemos 1000 muestras y calculamos el estimador del total poblacional para cada una de ellas.
+La función `sample_t_estimate` implementa este procedimiento genéricamente, recibiendo como parámetros:
+
+- `var` La variable que se desea estimar
+- `sample_size` el tamaño de las muestras que se deben tomar
+- `get_sample` una función que dado valor `n` devuelve una muestra de tamaño `n`
+- `get_design` una función que dada una muestra devuelve un objeto de diseño de muestreo generado con `svydesign`
+
+```{r estimate_dist_sample}
+sample_t_estimate <- function(var, sample_size, get_sample, get_design) {
+  n_simulations <- 1000
+  replicate(n_simulations, {
+    sample <- get_sample(sample_size)
+    design <- get_design(sample, sample_size)
+    coef(estimate_total(var, design))
+  })
+}
+```
+
+Utiliza `estimate_total` para estimar el total poblacional para la variable indicada.
+Además, definimos la función `empirical_distribution` (cuyo código no está expuesto en el informe)
+que toma los mismos parámetros, utiliza `sample_t_estimate`, grafica la distribución empírica
+y retorna resúmenes de la distribución empírica del estimador, como la media, la varianza y los intervalos de confianza empíricos al 95% de confianza,
+para cada tamaño de muestra.
+
+```{r estimate_dist_plots, include=FALSE}
+empirical_distribution <-
+  function(var, sample_sizes, get_sample, get_design) {
+    result <- lapply(sample_sizes, function(sample_size) {
+      pivot <- estimate_total(var, get_design(get_sample(sample_size), sample_size))
+      # Simular
+      t <- data.frame(
+        estimate = sample_t_estimate(var, sample_size, get_sample, get_design)
+      )
+      # Regla de Scott para el ancho de los bins
+      binwidth <- 3.5 * sd(t$estimate) / (sample_size^(1 / 3))
+      t_actual <- get(paste0("t_", var))
+      # Graficar Histograma + Curva de densidad
+      plot <- ggplot(t, aes(x = estimate)) +
+        geom_histogram(
+          aes(y = after_stat(density)),
+          binwidth = binwidth,
+          color = "black",
+          fill = "white"
+        ) +
+        geom_density(
+          alpha = 0.2,
+          fill = "blue",
+          color = "blue"
+        ) +
+        geom_vline(
+          aes(xintercept = mean(estimate)),
+          color = "blue",
+          linewidth = 0.7
+        ) +
+        geom_vline(
+          aes(xintercept = t_actual),
+          color = "red",
+          linewidth = 0.7
+        ) +
+        geom_area(
+          stat = "function",
+          fun = dnorm,
+          args = list(mean = t_actual, sd = SE(pivot)),
+          alpha = 0.2,
+          fill = "red",
+          color = "red"
+        ) +
+        labs(
+          x = var,
+          y = "Density",
+          title = paste0("Función de Densidad Empírica - n = ", sample_size)
+        ) +
+        theme_classic()
+      list(
+        plot = plot,
+        q95 = quantile(t$estimate, c(0.025, 0.975)),
+        mean = mean(t$estimate),
+        var = sd(t$estimate)
+      )
+    })
+    plots <- lapply(result, function(r) r$plot)
+    quantiles <- lapply(result, function(r) r$q95)
+    means <- lapply(result, function(r) r$mean)
+    standard_errors <- lapply(result, function(r) r$var)
+    names(quantiles) <- names(means) <- names(standard_errors) <- sample_sizes
+    grid.arrange(grobs = plots, padding = 5)
+    list(
+      quantiles = as.data.frame(t(as.data.frame(quantiles))),
+      means = as.data.frame(t(as.data.frame(means))),
+      standard_errors = as.data.frame(t(as.data.frame(standard_errors)))
+    )
+  }
+```
+
+# Diseño de muestreo SIR
+
+En esta parte analizamos el diseño **Simple con Reposición (SIR)**.
+En primera instancia, definimos los artefactos necesarios para utilizar nuestro marco de trabajo.
+Luego, estimamos la distribución empírica del estimador del total poblacional para `nbi` y para `xo`
+y comparamos sus características con el parámetro poblacional y con el estimador teórico de la varianza del estimador poblacional.
+
+## Definición del diseño
+
+Definimos la función `get_sir_design` que recibe una muestra y genera un objeto de diseño de muestreo
+con `svydesign` del paquete `survey` de la siguiente manera:
+
+```{r sir_design}
+get_sir_design <- function(sample, expected_sample_size = nrow(sample)) {
+  svydesign(
+    ids = ~1,
+    data = sample,
+    probs = nrow(sample) / N
+  )
+}
+```
+
+En este caso, la estrategia de muestreo es diseño SIR con estimador $t_{pwr}$.
+Entonces, la probabilidad de inclusión de cada unidad es la misma para todas las unidades y está definida como
+$n \ N$, dónde $n$ es el tamaño de la muestra y $N$ es el tamaño de la población.
+
+## Algoritmo de selección
+
+Definimos la función `get_sir_sample` que recibe el tamaño de la muestra y devuelve una muestra de tamaño `n` utilizando el método SIR.
+Específicamente, esto se implementa utilizando la función `srswr` del paquete `sampling`.
+
+```{r sir_sampling}
+get_sir_sample <- function(sample_size) {
+  index <- srswr(sample_size, N)
+  getdata(data, index)
+}
+```
+
+## Obtener muestras finales
+
+Utilizamos la función `get_sir_sample` para obtener muestras de tamaño 150, 600 y 1000
+y almacenarlas en la lista `sir_samples`.
+
+```{r sir_samples}
+sample_sizes <- c(150, 600, 1000)
+sir_samples <- lapply(sample_sizes, get_sir_sample)
+names(sir_samples) <- sample_sizes
+```
+
+## Obtener objetos de diseño finales
+
+Utilizamos la función `get_sir_design` para obtener los objetos de diseño de muestreo finales
+para cada muestra. Almacenamos estos objetos en la lista `sir_designs`.
+
+```{r sir_designs}
+sir_designs <- lapply(sir_samples, get_sir_design)
+```
+
+## Análisis de NBI
+
+En esta parte analizamos los resultados obtenidos para la variable `nbi`.
+Interesa estimar el total de hogares con 4 o más NBI.
+
+### Distribución empírica del estimador para el total de NBI
+
+Utilizamos la función `empirical_distribution` para obtener y visualizar la distribución empírica del estimador.
+Esta función utiliza internamente a la función `sample_t_estimate` presentada anteriormente.
+Para esto es necesario pasar las funciones  `get_sir_sample` y `get_sir_design` definidas recién como parámetros.
+
+Como resultado, obtenemos resúmenes de la distibución empírica y los almacenamos en la variable `t_nbi_dist`.
+Además visualizamos la distribución empírica para cada tamaño de muestra mediante histogramas y la función de densidad empírica.
+Mostramos el valor real del total poblacional de `nbi` como una línea vertical roja y el promedio muestral como una línea vertical azul.
+La función de densidad empírica se muestra como un área azul y la función de densidad teórica (Normal con media en el parámetro poblacional y la varianza teórica del estimador) y como un área roja.
+
+```{r sir_nbi_estimate_dist, results='show'}
+sir_t_nbi_dist <- empirical_distribution(
+  "nbi",
+  sample_sizes,
+  get_sir_sample,
+  get_sir_design
+)
+```
+
+A seguir podemos observar las estimaciones puntuales para el total poblacional, los promedios empíricos
+y el sesgo de cada uno (la diferencia con el parámetro real) para cada tamaño de muestra.
+Observamos bajo sesgo de la distribución empírica, lo cual puede visualizarse en los gráficos arriba.
+El estimado, sin embargo, presenta un sesgo de aproximadamente 20 unidades, con una leve reducción a medida que aumenta el tamaño de la muestra.
+
+```{r sir_nbi_estimate, echo=FALSE}
+sir_t_nbi_estimates <- estimate_totals("nbi", sir_designs)
+a <- show_results("t_estimate", sir_t_nbi_estimates)
+b <- show_results("t_dist_mean", sir_t_nbi_dist$means)
+c <- as.data.frame(
+  cbind(
+    a,
+    bias = abs(mapply("-", a, t_nbi)),
+    b,
+    bias = abs(mapply("-", b, t_nbi)),
+    difference = abs(mapply("-", a, b))
+  ),
+)
+c
+```
+
+Abajo reportamos las estimaciones del desvío estándar teórico del estimador y su varianza empírica, respectivamente, para cada tamaño de muestra.
+Observamos reducción en ambas estimaciones del desvío estándar al aumentar el tamaño de muestra.
+Por otro lado, al observar la diferencia entre ambos estimadores, se observa  una reducción del 71% al aumentar el tamaño de la muestra de 150 a 600
+y un aumento del 37% al aumentar el tamaño de muestra de 600 a 1000.
+Esto quiere decir que la varianza resultó mejor estimada por la fórmula teórica para el tamaño de muestra de 600.
+Sin embargo, la diferencia para ambos tamaños de muestra (600 y 1000) es pequeña.
+
+El bajo error al estimar la varianza del estimador puede apreciarse también en los gráficos,
+al observar la semejanza entre la curva roja (densidad teórica asintótica) y la curva azul (densidad empírica).
+
+```{r sir_nbi_estimate_var, echo=FALSE}
+a <- show_results("SE(t_nbi)", lapply(sir_t_nbi_estimates, SE))
+b <- show_results("SE(t_dist)", sir_t_nbi_dist$standard_errors)
+c <- as.data.frame(cbind(a, b, difference = abs(mapply("-", a, b))))
+c
+```
+
+### Efecto diseño del estimador para el total de NBI
+
+A seguir presentamos los valores del efecto diseño para el estimador del total poblacional en cada tamaño de muestra. 
+El efecto diseño resultó mayor que 1 para todos los casos, por la estrategia de muestreo (SIR con estimador $t_{pwr}$)
+causa pérdida de eficiencia en varianza respecto al diseño SI con estimador HT.
+
+Observamos también que a mayores tamaños de muestra aumenta el efecto diseño,
+por lo que concluimos que esta estrategia pierde eficiencia al aumentar tamaño de muestra.
+
+```{r sir_nbi_estimate_deff, echo=FALSE}
+sir_t_nbi_estimates_deff <- lapply(sir_t_nbi_estimates, deff)
+show_results("deff", sir_t_nbi_estimates_deff)
+```
+
+### Intervalos de confianza para el total de NBI
+
+Abajo reportamos los intervalos de confianza **empíricos** al 95% de confianza para el total de la variable `nbi` en cada tamaño de muestra.
+En la tercera columna incluímos el rango de cada intervalo, como medida de su precisión.
+
+Observamos que, además de que todos los intervalos incluyen al total real de la variable `nbi` (538 hogares),
+la precisión de los intervalos aumentan con el tamaño de muestra.
+Al aumentar el tamaño de muestra de 150 a 600 observamos una reducción del 48% en el rango y al aumentar el tamaño de muestra de 600 a 1000 observamos una reducción del 23%.
+
+
+```{r sir_nbi_estimate_quantiles, echo=FALSE}
+sir_t_nbi_dist$quantiles$range <- sir_t_nbi_dist$quantiles$"97.5%" - sir_t_nbi_dist$quantiles$"2.5%"
+sir_t_nbi_dist$quantiles
+```
+
+Abajo reportamos los intervalos de confianza al 95% asumiendo que el estimador se distribuye con normalidad.
+En este caso, tambien observamos una reducción del 48% en el rango al aumentar el tamaño de muestra de 150 a 600 y una reducción del 23% al aumentar de 600 a 1000 elementos.
+Por lo tanto, concluimos que en el caso normal el intervalo de confianza es más preciso a medida que aumenta el tamaño de muestra. 
+
+```{r sir_nbi_estimate_confint, echo=FALSE}
+sir_t_nbi_confint <- as.data.frame(do.call(rbind, lapply(sir_t_nbi_estimates, confint_norm)))
+sir_t_nbi_confint$range <- sir_t_nbi_confint$"97.5%" - sir_t_nbi_confint$"2.5%"
+rownames(sir_t_nbi_confint) <- sample_sizes
+sir_t_nbi_confint
+```
+
+Al comparar los intervalos de confianza empíricos y los intervalos de confianza asumiendo normalidad,
+observamos su similaridad en términos de rango y posición, lo que implica que también coincidan respecto a su variación con el tamaño de muestra.
+Destacamos, sin embargo, que los intervalos al considerar tamaño de muestra de 600 o 1000 son más cercanos que cuando el tamaño de muestras es 150.
+Esto es razonable, puesto que la normalidad del estimador del total poblacional es asintótica, por lo que será más evidente a medida que crece el tamaño de muestra.
+
+## Análisis de XO
+
+En esta parte se presenta el mismo procedimiento realizado para la variable `nbi`, pero considerando a la variable `xo` como característica de interés.
+Interesa estimar el total de hogares con al menos un dispositivo XO.
+
+### Distribución empírica del estimador para el total de XO
+
+A seguir presentamos los gráficos de la distribución empírica del estimador del total de `xo`.
+Destacamos la similiridad entre la distribución empírica (área azul) y la distribución teórica (área roja).
+
+```{r sir_xo_estimate_dist, echo=FALSE, results='show'}
+sir_t_xo_dist <- empirical_distribution(
+  "xo",
+  sample_sizes,
+  get_sir_sample,
+  get_sir_design
+)
+```
+
+
+Respecto a las estimaciones puntuales para el total de `xo`, observamos una reducción considerable del sesgo del estimador del total poblacional.
+Destacamos la reducción en el sesgo de 60% al aumentar el tamaño de muestra de 150 a 600 y de 82% al aumentar el tamaño de muestra de 600 a 1000.
+
+```{r sir_xo_estimate, echo=FALSE}
+sir_t_xo_estimates <- estimate_totals("xo", sir_designs)
+a <- show_results("t_estimate", sir_t_xo_estimates)
+b <- show_results("t_dist_mean", sir_t_xo_dist$means)
+c <- as.data.frame(
+  cbind(
+    a,
+    bias = abs(mapply("-", a, t_xo)),
+    b,
+    bias = abs(mapply("-", b, t_xo)),
+    difference = abs(mapply("-", a, b))
+  )
+)
+c
+```
+
+Respecto al desvío estándar del estimador del total de `xo`, observamos que la diferencia entre el desvío empírico y el teórico estimada es pequeña y se reduce a medida que aumenta el tamaño de muestra.
+
+```{r sir_xo_estimate_var, echo=FALSE}
+a <- show_results("SE(t_xo)", lapply(sir_t_xo_estimates, SE))
+b <- show_results("SE(t_dist)", sir_t_xo_dist$standard_errors)
+c <- as.data.frame(cbind(a, b, difference = abs(mapply("-", a, b))))
+c
+```
+
+Respecto al efecto diseño, se observan resultados semejantes a aquellos obtenidos para la variable `nbi`.
+El efecto diseño es mayor que 1 para todos los tamaños de muestra, por lo que esta estrategia de muestreo genera reducción 
+en la eficiencia en varianza al estimar la variable `xo`. Por lo tanto, el diseño SI es más eficiente para este problema.
+
+```{r sir_xo_estimate_deff, echo=FALSE}
+sir_t_xo_estimates_deff <- lapply(sir_t_xo_estimates, deff)
+show_results("deff", sir_t_xo_estimates_deff)
+```
+
+Respecto al intervalo de confianza asumiento normalidad, lógicamente observamos un aumento significativo en la precisión del intervalo al aumentar el tamaño de muestra.
+Destacamos el aumento de precisión (o reducción en el rango) de 50% al pasar de 150 a 600 elementos en la muestra.
+
+```{r sir_xo_estimate_confint, echo=FALSE}
+sir_t_xo_confint <- as.data.frame(do.call(rbind, lapply(sir_t_xo_estimates, confint_norm)))
+sir_t_xo_confint$range <- sir_t_xo_confint$"97.5%" - sir_t_xo_confint$"2.5%"
+rownames(sir_t_xo_confint) <- sample_sizes
+sir_t_xo_confint
+```
+
+
+
+
+
+# Diseño de muestreo SI
+
+
+En esta parte analizamos el diseño **Simple sin reposición (SI)**.
+En primera instancia, definimos los artefactos necesarios para utilizar nuestro marco de trabajo.
+Luego, estimamos la distribución empírica del estimador del total poblacional para `nbi` y para `xo`
+y comparamos sus características con el parámetro poblacional y con el estimador teórico de la varianza del estimador poblacional.
+
+
+
+
+## Definición del diseño
+
+Definimos la función `get_si_design` que recibe una muestra y genera un objeto de diseño de muestreo
+con `svydesign` del paquete `survey` de la siguiente manera:
+
+
+```{r si_design}
+get_si_design <- function(sample, expected_sample_size = nrow(sample)) {
+  svydesign(
+    ids = ~1,
+    data = sample,
+    probs = rep(nrow(sample) / N, nrow(sample)),
+    fpc = rep(N, nrow(sample))
+  )
+}
+```
+
+En este caso, la estrategia de muestreo es diseño SI  con el estimador $t_{\pi}$ de Horvitz-Thompson. La probabilidad de inclusión  de primer orden  la definimos como $n \ N$, siendo $n$ el tamaño esperado de la muestra y $N$ es el tamaño de la población. Se agrega el parámetro `fpc` para indicar que el muestreo es sin reemplazo.
+
+
+## Algoritmo de selección
+
+Definimos la función `get_si_sample` que recibe el tamaño de la muestra y devuelve una muestra de tamaño `n` utilizando el método SI.
+Específicamente, esto se implementa utilizando la función `srswor` del paquete `sampling`.
+
+```{r si_sampling}
+get_si_sample <- function(sample_size) {
+  index <- srswor(sample_size, N)
+  getdata(data, index)
+}
+```
+
+## Obtener muestras finales
+
+Utilizamos la función `get_si_sample` para obtener muestras de tamaño 150, 600 y 1000
+y almacenarlas en la lista `si_samples`.
+
+```{r si_samples}
+sample_sizes <- c(150, 600, 1000)
+si_samples <- lapply(sample_sizes, get_si_sample)
+names(si_samples) <- sample_sizes
+```
+
+## Obtener objetos de diseño finales
+
+Utilizamos la función `get_si_design` para obtener los objetos de diseño de muestreo finales
+para cada muestra. Almacenamos estos objetos en la lista `si_designs`.
+
+```{r si_designs}
+si_designs <- lapply(si_samples, get_si_design)
+```
+
+## Análisis de NBI
+
+### Distribución empírica del estimador para el total de NBI
+
+A seguir presentamos los gráficos con la distribución empírica del estimador del total de `nbi` para cada tamaño de muestra.
+Destacamos la similitud de la densidad empírica (curva azul) a la densidad asintótica (curva roja), especialmente al aumentar el tamaño de muestra.
+También podemos observar bajo sesgo, puesto que la media de las distribucion empírica (línea vertical azul) se encuentra cerca al parámetro poblacional (línea vertical roja).
+
+```{r si_nbi_estimate_dist, echo=FALSE, results='show'}
+si_t_nbi_dist <- empirical_distribution(
+  "nbi",
+  sample_sizes,
+  get_si_sample,
+  get_si_design
+)
+```
+
+A seguir podemos observar las estimaciones puntuales para el total poblacional, los promedios empíricos
+y el sesgo de cada uno (la diferencia con el parámetro real) para cada tamaño de muestra.
+Observamos un bajo sesgo de la distribución empírica, lo cual puede visualizarse en los gráficos de arriba.
+Además, el sesgo se reduce a medida que aumenta el tamaño de muestra.
+
+```{r si_nbi_estimate, echo=FALSE}
+si_t_nbi_estimates <- estimate_totals("nbi", si_designs)
+a <- show_results("t_estimate", si_t_nbi_estimates)
+b <- show_results("t_dist_mean", si_t_nbi_dist$means)
+c <- as.data.frame(
+  cbind(
+    a,
+    bias = abs(mapply("-", a, t_nbi)),
+    b,
+    bias = abs(mapply("-", b, t_nbi)),
+    difference = abs(mapply("-", a, b))
+  ),
+)
+c
+```
+
+A seguir presentamos el estimador del desvío y el desvío empírico del estimador del total poblacional para la variable `nbi`.
+Destacamos la baja diferencia entre ellos, lo que indica que el estimador del desvío no presenta un gran sesgo para el desvío del estimador.
+Además, se observa que esta diferencia se reduce al aumentar el tamaño de muestra, destacando la reducción del 57% al aumentar de 150 a 600 elementos.
+
+```{r si_nbi_estimate_var, echo=FALSE}
+a <- show_results("SE(t_nbi)", lapply(si_t_nbi_estimates, SE))
+b <- show_results("SE(t_dist)", si_t_nbi_dist$standard_errors)
+c <- as.data.frame(cbind(a, b, difference = abs(mapply("-", a, b))))
+c
+```
+
+### Efecto diseño del estimador para el total de NBI
+
+A seguir reportamos el efecto diseño del estimador del total de `nbi` para cada tamaño de muestra.
+Como es esperado, el efecto diseño para SI es igual a 1, lo cual valida la implementación realizada de la estrategia de muestreo.
+
+```{r si_nbi_estimate_deff, echo=FALSE}
+si_t_nbi_estimates_deff <- lapply(si_t_nbi_estimates, deff)
+show_results("deff", si_t_nbi_estimates_deff)
+```
+
+# Intervalos de confianza para el total de NBI
+Abajo reportamos los intervalos de confianza **empíricos** al 95% de confianza para el total de la variable `nbi` en cada tamaño de muestra.
+
+
+```{r si_nbi_estimate_quantiles, echo=FALSE}
+si_t_nbi_dist$quantiles$range <- si_t_nbi_dist$quantiles$"97.5%" - si_t_nbi_dist$quantiles$"2.5%"
+si_t_nbi_dist$quantiles
+```
+
+Se puede apreciar que a medida que aumenta el tamaño de muestra, disminuye la amplitud del intervalo.
+En todos los casos, el intervalo contiente al parametro estimado.
+
+Abajo reportamos los intervalos de confianza al 95% asumiendo que el estimador se distribuye con normalidad.
+Podemos ver que hay diferencia entre el empirico y el estimador asumiendo normalidad, pero esta se reduce al aumentar el tamaño de muestra.
+Esto es razonable puesto que el estimador se distribuye asintóticamente como una normal.
+
+```{r si_nbi_estimate_confint, echo=FALSE}
+si_t_nbi_confint <- as.data.frame(do.call(rbind, lapply(si_t_nbi_estimates, confint_norm)))
+si_t_nbi_confint$range <- si_t_nbi_confint$"97.5%" - si_t_nbi_confint$"2.5%"
+rownames(si_t_nbi_confint) <- sample_sizes
+si_t_nbi_confint
+```
+
+
+### Distribución empírica del estimador para el total de XO
+
+A seguir presentamos los gráficos de la distribución empírica del estimador del total de `xo`.
+Destacamos la similiridad entre la distribución empírica (área azul) y la distribución teórica (área roja).
+
+```{r si_xo_estimate_dist, echo=FALSE, results='show'}
+si_t_xo_dist <- empirical_distribution(
+  "xo",
+  sample_sizes,
+  get_si_sample,
+  get_si_design
+)
+```
+
+A seguir presentamos el valor y los promedios empíricos del estimador HT para cada tamaño de muestra.
+Se reportan además su sesgos (diferencia de cada uno con el parámetro real) y la diferencia entre ellos.
+Destacamos el bajo sesgo del promedio empírico y la reducción del sesgo del estimador a medida que aumenta el tamaño de muestra.
+Nuevamente, se observa una diferencia mucho más acentuada al aumentar la muestra de 150 a 600 elementos.
+Esto no ocurre al pasar de 600 a 1000 elementos.
+
+```{r si_xo_estimate, echo=FALSE}
+si_t_xo_estimates <- estimate_totals("xo", si_designs)
+a <- show_results("t_estimate", si_t_xo_estimates)
+b <- show_results("t_dist_mean", si_t_xo_dist$means)
+c <- as.data.frame(
+  cbind(
+    a,
+    bias = abs(mapply("-", a, t_xo)),
+    b,
+    bias = abs(mapply("-", b, t_xo)),
+    difference = abs(mapply("-", a, b))
+  )
+)
+c
+```
+
+Sobre el desvío estimado para el estimador, destacamos su reducción al aumentar el tamaño de muestra
+y que la diferencia con el desvío empírico es pequeña.
+
+```{r si_xo_estimate_var, echo=FALSE}
+a <- show_results("SE(t_xo)", lapply(sir_t_xo_estimates, SE))
+b <- show_results("SE(t_dist)", sir_t_xo_dist$standard_errors)
+c <- as.data.frame(cbind(a, b, difference = abs(mapply("-", a, b))))
+c
+```
+
+A seguir presentamos los intervalos de confianza para el total de la variable `xo` asumiendo la normalidad del estimador HT.
+Respecto al rango de los intervalos, observamos una reducción del 52% al aumentar el tamaño de muestra de 150 a 600 y del 26$ al aumentar de 600 a 1000.
+Esto evidencia que al aumentar la muestra aumenta también la validez del supuesto de normalidad.
+
+```{r si_xo_estimate_confint, echo=FALSE}
+si_t_xo_confint <- as.data.frame(do.call(rbind, lapply(si_t_xo_estimates, confint_norm)))
+si_t_xo_confint$range <- si_t_xo_confint$"97.5%" - si_t_xo_confint$"2.5%"
+rownames(si_t_xo_confint) <- sample_sizes
+si_t_xo_confint
+```
+
+
+# Diseño de muestreo BER
+
+En esta parte analizamos el diseño **Bernoulli (BER)**.
+Al igual que para el diseño anterior, definimos la estrategia y las funciones necesarias, y luego estimamos la distribución empírica de las variables de interés.
+
+## Definición del diseño
+
+Definimos la función `get_ber_design` que recibe una muestra y genera un objeto de diseño de muestreo
+con `svydesign` del paquete `survey` de la siguiente manera:
+
+```{r ber_design}
+get_ber_design <- function(sample, sample_size) {
+  svydesign(
+    ids = ~1,
+    data = sample,
+    fpc = rep(nrow(sample) / N, nrow(sample)),
+    probs = sample_size / N
+  )
+}
+```
+En este caso, la estrategia de muestreo es diseño BER con estimador $t_{\pi}$.
+La particularidad de este diseño es que su tamaño de muestra no es fijo. La probabilidad de inclusión es constante y la definimos como $n / N$, siendo $n$ el tamaño esperado de la muestra. Definiendo la probabilidad de inclusión de esta forma logramos que el tamaño de las muestras sea lo más cercano posible al buscado.
+
+## Algoritmo de selección
+
+Definimos la función `get_ber_sample` que recibe el tamaño esperado de muestra y lo usa para calcular la probabilidad de inclusión. Luego simula una $U ~ (0,1)$ para cada elemento de la población y la muestra queda conformada por los elementos cuyo valor simulado es menor a dicha probabilidad de inclusión.
+
+```{r ber_sampling}
+get_ber_sample <- function(sample_size) {
+  pi_k <- sample_size / N
+  data$epsilon <- runif(nrow(data))
+  m <- data %>% filter(epsilon < pi_k)
+  return(m)
+}
+```
+
+## Obtener muestras finales
+
+Utilizamos la función `get_ber_sample` para obtener muestras de tamaños similares a 150, 600 y 1000 y almacenarlas en la lista `ber_samples`.
+
+```{r ber_samples}
+sample_sizes <- c(150, 600, 1000)
+ber_samples <- lapply(sample_sizes, get_ber_sample)
+names(ber_samples) <- sample_sizes
+```
+
+## Obtener objetos de diseño finales
+
+Utilizamos la función `get_ber_design` para obtener los objetos de diseño de muestreo finales
+para cada muestra. Almacenamos estos objetos en la lista `ber_designs`.
+
+```{r ber_designs}
+ber_designs <- mapply(get_ber_design, ber_samples, sample_sizes, SIMPLIFY = F)
+```
+
+## Análisis de NBI
+
+En esta parte analizamos los resultados obtenidos para la variable `nbi`.
+
+### Distribución empírica del estimador para el total de NBI
+
+Utilizamos nuevamente la función `empirical_distribution` para obtener y visualizar la distribución empírica del estimador.
+
+Como resultado, obtenemos resúmenes de la distibución empírica y los almacenamos en la variable `ber_t_nbi_dist`.
+Además visualizamos la distribución empírica para cada tamaño de muestra mediante histogramas y la función de densidad empírica.
+Mostramos el valor real del total poblacional de `nbi` como una línea vertical roja y el promedio muestral como una línea vertical azul.
+La función de densidad empírica se muestra como un área azul y la función de densidad teórica (Normal con media en el parámetro poblacional y la varianza teórica del estimador) y como un área roja.  
+
+Podemos observar que para los tres tamaños de muestra, la distribución empírica es bastante parecida a la normal.  
+
+```{r ber_nbi_estimate_dist, results='show'}
+ber_t_nbi_dist <- empirical_distribution(
+  "nbi",
+  sample_sizes,
+  get_ber_sample,
+  get_ber_design
+)
+```
+
+Podemos observar las estimaciones puntuales para el total poblacional, los promedios empíricos y el sesgo de cada uno (la diferencia con el parámetro real) para cada tamaño de muestra.  
+En este caso, el sesgo de los estimadores resulta sumamente alto, al menos para la muestra de 150. Además, sorprendentemente los estimadores de las muestras de 600 resultaron mejores que los de 1000. En este punto es importante recordar que la principal desventaja del diseño Bernoulli es que su tamaño de muestra es variable. En parte, es esta característica la que causa una gran variabilidad en las estimaciones. De todas formas, el promedio de la distribución se acerca muy bien al valor real.
+
+```{r ber_nbi_estimate, echo=FALSE}
+ber_t_nbi_estimates <- estimate_totals("nbi", ber_designs)
+a <- show_results("t_estimate", ber_t_nbi_estimates)
+b <- show_results("t_dist_mean", ber_t_nbi_dist$means)
+c <- as.data.frame(
+  cbind(
+    a,
+    bias = abs(mapply("-", a, t_nbi)),
+    b,
+    bias = abs(mapply("-", b, t_nbi)),
+    difference = abs(mapply("-", a, b))
+  ),
+)
+c
+```
+
+### Efecto diseño del estimador para el total de NBI
+
+El efecto diseño muestra que para todos los tamaños de muestra, las varianzas de los diseños comparados son muy parecidas. Nuevamente la muestra de 600 con el diseño BER se destaca, esta vez por su reducida varianza, al menos en relación a la del SI.
+
+```{r ber_nbi_estimate_deff, echo=FALSE}
+ber_t_nbi_estimates_deff <- lapply(ber_t_nbi_estimates, deff)
+show_results("deff", ber_t_nbi_estimates_deff)
+```
+### Intervalos de confianza para el total de NBI
+
+Abajo reportamos los intervalos de confianza **empíricos** al 95% de confianza para el total de la variable `nbi` en cada tamaño de muestra.
+En la tercera columna incluímos el rango de cada intervalo, como medida de su precisión.
+
+Observamos que, además de que todos los intervalos incluyen al total real de la variable `nbi` (538 hogares),
+la precisión de los intervalos aumentan con el tamaño de muestra.
+Al aumentar el tamaño de muestra de 150 a 600 observamos una reducción del 51% en el rango y al aumentar el tamaño de muestra de 600 a 1000 observamos una reducción del 26%.
+
+
+```{r ser_nbi_estimate_quantiles, echo=FALSE}
+ber_t_nbi_dist$quantiles$range <- ber_t_nbi_dist$quantiles$"97.5%" - ber_t_nbi_dist$quantiles$"2.5%"
+ber_t_nbi_dist$quantiles
+```
+
+Abajo reportamos los intervalos de confianza al 95% asumiendo que el estimador se distribuye con normalidad.
+En este caso, observamos una reducción del 56% en el rango al aumentar el tamaño de muestra de 150 a 600 y una reducción del 24% al aumentar de 600 a 1000 elementos.
+
+```{r ber_nbi_estimate_confint, echo=FALSE}
+ber_t_nbi_confint <- as.data.frame(do.call(rbind, lapply(ber_t_nbi_estimates, confint_norm)))
+ber_t_nbi_confint$range <- ber_t_nbi_confint$"97.5%" - ber_t_nbi_confint$"2.5%"
+rownames(ber_t_nbi_confint) <- sample_sizes
+ber_t_nbi_confint
+```
+
+Al comparar los intervalos de confianza empíricos y los intervalos de confianza asumiendo normalidad, es posible ver que si bien los rangos son bastante parecidos, las posiciones difieren. Por ejemplo, en la muestra de 150 elementos, el intervalo hecho asumiendo normalidad está "corrido a la derecha" con respecto al empírico. Lo contrario sucede con los otros dos tamaños de muestra. Incluso ocurre que para el tamaño de muestra 1000 en el intervalo asumiendo normalidad, el valor real queda súmamente cerca del límite superior.  
+Por otro lado, es posible afirmar que, como era esperado, los intervalos se reducen en amplitud al aumentar el tamaño de muestra.   
+
+## Análisis de XO
+
+### Distribución empírica del estimador para el total de XO
+
+A continuación presentamos los gráficos de la distribución empírica del estimador del total de `xo`.   
+En este caso la distribución empírica dista bastante de una normal para todos los tamaños de muestra. Las distribuciones tienen una varianza elevada, lo cual aumenta el riesgo de que la muestra seleccionada provea una estimación ampliamente alejada del valor real.  
+
+```{r ber_xo_estimate_dist, echo=FALSE, results='show'}
+ber_t_xo_dist <- empirical_distribution(
+  "xo",
+  sample_sizes,
+  get_ber_sample,
+  get_ber_design
+)
+```
+
+
+Respecto a las estimaciones puntuales para el total de `xo`, la muestra de 150 elementos que obtuvimos tiene un sesgo considerable, que se reduce a un cuarto al tomar una muestra de 600 y vuelve a reducirse, esta vez drásticamente, al pasar a la muestra más grande.  
+Además, el promedio de las estimaciones produce un sesgo aproximadamente igual a 0.
+
+```{r ber_xo_estimate, echo=FALSE}
+ber_t_xo_estimates <- estimate_totals("xo", ber_designs)
+a <- show_results("t_estimate", ber_t_xo_estimates)
+b <- show_results("t_dist_mean", ber_t_xo_dist$means)
+c <- as.data.frame(
+  cbind(
+    a,
+    bias = abs(mapply("-", a, t_xo)),
+    b,
+    bias = abs(mapply("-", b, t_xo)),
+    difference = abs(mapply("-", a, b))
+  )
+)
+c
+```
+
+En cuanto a los errores estándar, podemos observar que en la muestra observada difieren en gran medida de la varianza empírica. El patrón que puede notarse es que al aumentar el tamaño de muestra, se reduce tanto el desvío como la diferencia entre el observado y el empírico.
+
+```{r ber_xo_estimate_var, echo=FALSE}
+a <- show_results("SE(t_xo)", lapply(ber_t_xo_estimates, SE))
+b <- show_results("SE(t_dist)", ber_t_xo_dist$standard_errors)
+c <- as.data.frame(cbind(a, b, difference = abs(mapply("-", a, b))))
+c
+```
+Con respecto al efecto diseño, los resultados obtenidos son equivalentes a los de la variable `nbi`. La varianza del diseño BER es muy similar a la del SI, y para el tamaño de muestra 600, el BER resulta apenas mejor.
+
+```{r ber_xo_estimate_deff, echo=FALSE}
+ber_t_xo_estimates_deff <- lapply(ber_t_xo_estimates, deff)
+show_results("deff", ber_t_xo_estimates_deff)
+```

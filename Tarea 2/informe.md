@@ -1,3 +1,8 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
 **Muestreo y Planificación de Encuestas 1 - 2023**
 
 Matías Bajac, Lucas Pescetto, Andrés Vidal.
@@ -115,13 +120,19 @@ En cada estrato se realizará muestreo simple sin reposición, con tamaños de m
 
 Para obtener las muestra $S_{Z_i}$ de zonas censales para cada localidad $L_i$ perteneciente a la muestra obtenida en la etapa anterior, se utiliza el marco de muestro de zonas censales construido inicialmente.
 
-Dentro de cada localidad, se utilizará un diseño de muestreo simple sin reposición, cuyo tamaño es proporcional a la cantidad de viviendas en la localidad:
+Dentro de cada localidad, se utilizará un diseño de muestreo simple sin reposición, cuyo tamaño se calcula en base a la cantidad de viviendas de cada estrato, y a la cantidad de viviendas de las localidades de la muestra, de la siguiente forma:
 
 $$n(S_{Z_i}) = \frac{\rho_i}{r_i}$$
 
 dónde $r_i$ es el número de padrones que se relevarán por zona censal en la localidad $L_i$ y $\rho_i$ es la cantidad de padrones que se relevarán en la localidad $L_i$:
 
-$$\rho_i= 1000 \frac{\text{viviendas}(L_i)}{\sum_{k=1}^{n(S_L)}\text{viviendas}(L_k)}$$
+$$\rho_i= 1000 \alpha^j_k \frac{\text{viviendas}(L_i)}{\sum_{S^j_k}\text{viviendas}(L_k)}$$
+
+donde $\alpha^j_k$ es la proporción de viviendas del estrato j y el subestrato k (esto último solo aplica para el estrato 3) sobre el total de viviendas de la población. $S^j_k$ es el conjunto de las localidades del estrato j y el subestrato k que salieron en la muestra.
+
+Calculamos los $\rho_i$ de esta forma para que la cantidad de padrones seleccionados en cada estrato sea aproximadamente proporcional a la cantidad total de padrones del mismo. Esto permite atenuar el impacto que tiene sobre las localidades chicas el hecho de haber seleccionado en ese subestrato una proporción menor de localidades que en los otros.
+
+Luego, para distribuir los padrones de cada estrato entre las localidades que salieron en la muestra, se realiza de forma proporcional a la cantidad de viviendas de cada una de esas localidades (en los casos de Melo y Rio Branco, todos los padrones seleccionados en sus respectivos estratos quedan en esas localidades ya que son únicas en sus estratos).
 
 ### Tercera Etapa: Muestreo de Padrones
 

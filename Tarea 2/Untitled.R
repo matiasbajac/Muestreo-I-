@@ -1,8 +1,9 @@
+### obtención de muestra de zonas censales a partir del diseño explicado ###
+
 library(haven)
 library(tidyverse)
 library(sampling)
 library(here)
-
 
 marco_cerro_largo <- read_sav("Tarea 2/Marco_2011_con_barrio_y_Sec_po_savl.sav") %>% 
   # obtenemos el departamento de Cerro Largo y descartamos las zonas censales rurales
@@ -22,12 +23,11 @@ marco_cerro_largo <- read_sav("Tarea 2/Marco_2011_con_barrio_y_Sec_po_savl.sav")
       TRUE ~ nomloc
     )
   ) %>% 
-  transmute(pob = P_TOT,
-            viviendas = V_TOT,
+  transmute(viviendas = V_TOT,
             localidades = nomloc)
 
 
-# etapa 1
+### etapa 1 ###
 
 set.seed(123)
 
@@ -35,15 +35,14 @@ marco_etapa_1 <- marco_cerro_largo %>%
   group_by(localidades) %>% 
   # calculamos la cantidad  de viviendas y zonas censales por localidad
   summarise(n_viv = sum(viviendas), n_z = n()) %>%  
-  # quitamos a Melo y Rio Branco del marco de la primera etapa, ya que pasarán directamente a la segunda
   # creamos los estratos en función de la cantidad de viviendas
-  mutate(estrato = cut(n_viv, breaks = c(0, 150, 5000,15000, Inf), right = FALSE)) %>%
+  mutate(estrato = cut(n_viv, breaks = c(0, 150, 5000, 15000, Inf), right = FALSE)) %>%
   arrange(estrato)
 
-n_1 <- 7 # tamaño de muestra total de la primera etapa
-
+# vemos las características de cada estrato, lo cual nos permite calcular la cantidad de
+# padrones que se sortearan posteriormente en cada uno
 estratos <- marco_etapa_1 %>% 
-  group_by(estrato) %>%  # calculamos la cantidad de localidades por estrato
+  group_by(estrato) %>%
   summarise(n_loc = n(), N_z = sum(n_z), N_viv = sum(n_viv)) %>% 
   mutate(mh = case_when(row_number() == 1 ~ 2,
                         row_number() == 2 ~ 3,
@@ -52,17 +51,18 @@ estratos <- marco_etapa_1 %>%
                         TRUE ~ 1),
          n_pad = round(1000*N_viv/sum(N_viv)))
 
-
+# creamos el diseño para obtener localidades
 disenio_1 <-  strata(marco_etapa_1, stratanames = "estrato", size = estratos$mh)
 
+# obtenemos la muestra de localidades
 muestra_1 <- getdata(marco_etapa_1, disenio_1) %>% 
   select(localidades, n_viv, n_z, estrato)
 
 
-# niveles de error y confianza dentro de cada zona
+# precisión dentro de cada zona (para calcular la cantidad de padrones a sortear por zona)
+# decidimos mantener la misma confianza y error para todas las localidades
 error <- 0.05
 alpha <- 0.1
-# bind_rows(muestra_1, loc_grandes) %>%
 
 marco_etapa_2 <- muestra_1 %>%
   left_join(estratos[c("estrato", "n_pad")], by = "estrato") %>% 
@@ -80,8 +80,7 @@ marco_etapa_2_zonas <- marco_cerro_largo %>%
   
 disenio_2 <- strata(marco_etapa_2_zonas, strataname = "localidades", size = marco_etapa_2$n_zs)
 
-muestra_2 <- getdata(marco_etapa_2_zonas, disenio_2) %>% 
-  select(localidades, n_viv, n_z, estrato)
+muestra_2 <- getdata(marco_etapa_2_zonas, disenio_2) 
 
 ### usando multistage
 
